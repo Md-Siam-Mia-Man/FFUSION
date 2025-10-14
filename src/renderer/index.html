@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+     <meta charset="UTF-8">
+     <title>FFusion</title>
+     <meta http-equiv="Content-Security-Policy"
+          content="script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;">
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+     <link rel="stylesheet" href="../css/style.css">
+</head>
+
+<body data-theme="light">
+     <!-- Title Bar -->
+     <div class="title-bar">
+          <div class="title-text"><i class="fa-solid fa-atom"></i> FFusion</div>
+          <div class="title-controls"><button id="theme-toggle-btn"><i
+                         class="fa-solid fa-circle-half-stroke"></i></button></div>
+     </div>
+
+     <!-- Main App Layout -->
+     <div class="app-container">
+          <!-- Left Navigation -->
+          <nav class="sidebar">
+               <button data-page="page-dashboard" class="nav-item active" title="Dashboard"><i
+                         class="fa-solid fa-table-columns"></i></button>
+               <button data-page="page-inspect" class="nav-item" title="Inspect File"><i
+                         class="fa-solid fa-magnifying-glass"></i></button>
+               <button data-page="page-convert" class="nav-item" title="Convert & Process"><i
+                         class="fa-solid fa-gear"></i></button>
+               <button data-page="page-extract" class="nav-item" title="Extract Frames"><i
+                         class="fa-solid fa-images"></i></button>
+               <button data-page="page-trim" class="nav-item" title="Trim & Cut"><i
+                         class="fa-solid fa-scissors"></i></button>
+               <button data-page="page-audio" class="nav-item" title="Audio Tools"><i
+                         class="fa-solid fa-waveform"></i></button>
+          </nav>
+
+          <!-- Main Content Area -->
+          <main class="main-content">
+               <!-- PAGE: Dashboard -->
+               <div id="page-dashboard" class="page active">
+                    <div class="page-header">
+                         <h1>Dashboard</h1>
+                    </div>
+                    <div class="page-content dashboard-grid">
+                         <div class="drop-zone-container">
+                              <div id="dashboard-welcome" class="drop-zone">
+                                   <i class="fa-solid fa-file-arrow-down"></i>
+                                   <p>Drop a media file to begin</p>
+                                   <span>or</span>
+                                   <button class="button" id="browse-file-dashboard">Browse File</button>
+                              </div>
+                              <div id="dashboard-preview" class="hidden">
+                                   <!-- Preview will be generated here by JS -->
+                              </div>
+                         </div>
+                         <div id="dashboard-info" class="dashboard-info-panel">
+                              <h3>Getting Started</h3>
+                              <p>Load a file to see its preview and properties.</p>
+                              <p>Then, navigate to one of the tool pages on the left to begin working.</p>
+                              <ul>
+                                   <li><i class="fa-solid fa-magnifying-glass"></i> <strong>Inspect:</strong> See all
+                                        metadata.</li>
+                                   <li><i class="fa-solid fa-gear"></i> <strong>Convert:</strong> Change format, codec,
+                                        and more.</li>
+                                   <li><i class="fa-solid fa-images"></i> <strong>Extract:</strong> Pull still images
+                                        from video.</li>
+                              </ul>
+                         </div>
+                    </div>
+               </div>
+
+               <!-- PAGE: Inspect -->
+               <div id="page-inspect" class="page">
+                    <div class="page-header">
+                         <h1>Inspect Media</h1>
+                         <div class="header-controls"><button class="button" id="browse-file-inspect">Select Another
+                                   File</button></div>
+                    </div>
+                    <div class="page-content">
+                         <div id="inspect-container">
+                              <div class="drop-zone-container">Select a file to view its properties.</div>
+                         </div>
+                    </div>
+               </div>
+
+               <!-- PAGE: Convert -->
+               <div id="page-convert" class="page">
+                    <div class="page-header">
+                         <h1>Convert & Process</h1>
+                    </div>
+                    <div class="page-content convert-grid">
+                         <div class="convert-settings">
+                              <div class="source-selector">
+                                   <p>Source: <span id="convert-source-file">None</span></p>
+                                   <button class="button" id="browse-file-convert">Select File</button>
+                              </div>
+                              <div class="tabs">
+                                   <button data-tab="video" class="tab-item active"><i class="fa-solid fa-video"></i>
+                                        Video</button>
+                                   <button data-tab="audio" class="tab-item"><i class="fa-solid fa-music"></i>
+                                        Audio</button>
+                                   <button data-tab="output" class="tab-item"><i class="fa-solid fa-file-export"></i>
+                                        Output</button>
+                              </div>
+                              <div class="tab-content-container">
+                                   <!-- Video Tab -->
+                                   <div id="tab-video" class="tab-content active">
+                                        <div class="form-group"><label>Codec</label>
+                                             <div class="button-group" id="video-codec">
+                                                  <button class="button-group-item active"
+                                                       data-value="libx264">H.264</button>
+                                                  <button class="button-group-item" data-value="libx265">H.265</button>
+                                                  <button class="button-group-item" data-value="libvpx-vp9">VP9</button>
+                                                  <button class="button-group-item" data-value="libaom-av1">AV1</button>
+                                                  <button class="button-group-item" data-value="copy">Copy</button>
+                                             </div>
+                                        </div>
+                                        <div class="form-group video-options"><label>Quality (CRF)</label>
+                                             <div class="slider-container" id="video-crf-slider" data-min="0"
+                                                  data-max="51" data-value="23">
+                                                  <div class="slider-track">
+                                                       <div class="slider-progress"></div>
+                                                       <div class="slider-thumb"></div>
+                                                  </div><span class="slider-value">23</span>
+                                             </div>
+                                             <div class="preset-group">
+                                                  <button class="preset-button" data-value="18">High</button>
+                                                  <button class="preset-button" data-value="23">Medium</button>
+                                                  <button class="preset-button" data-value="28">Low</button>
+                                             </div>
+                                        </div>
+                                        <div class="form-group video-options"><label>Bitrate (kbps)</label>
+                                             <div class="input-with-presets">
+                                                  <input type="number" id="video-bitrate" placeholder="e.g., 4000">
+                                                  <div class="preset-group">
+                                                       <button class="preset-button" data-value="8000">8000</button>
+                                                       <button class="preset-button" data-value="4000">4000</button>
+                                                       <button class="preset-button" data-value="2000">2000</button>
+                                                  </div>
+                                             </div>
+                                        </div>
+                                        <div class="form-group video-options"><label>Resolution</label>
+                                             <div class="input-with-presets">
+                                                  <input type="text" id="video-resolution" placeholder="e.g., 1920x-2">
+                                                  <div class="preset-group">
+                                                       <button class="preset-button"
+                                                            data-value="1920x1080">1080p</button>
+                                                       <button class="preset-button" data-value="1280x720">720p</button>
+                                                       <button class="preset-button" data-value="640x360">360p</button>
+                                                  </div>
+                                             </div>
+                                        </div>
+                                        <div class="form-group video-options"><label>Frame Rate</label>
+                                             <div class="input-with-presets">
+                                                  <input type="number" id="video-framerate" placeholder="Original">
+                                                  <div class="preset-group">
+                                                       <button class="preset-button" data-value="60">60</button>
+                                                       <button class="preset-button" data-value="30">30</button>
+                                                       <button class="preset-button" data-value="24">24</button>
+                                                  </div>
+                                             </div>
+                                        </div>
+                                        <div class="form-group video-options"><label>Pixel Format</label>
+                                             <div class="button-group" id="video-pix_fmt">
+                                                  <button class="button-group-item active"
+                                                       data-value="yuv420p">yuv420p</button>
+                                                  <button class="button-group-item"
+                                                       data-value="yuv422p">yuv422p</button>
+                                                  <button class="button-group-item"
+                                                       data-value="yuv444p">yuv444p</button>
+                                             </div>
+                                        </div>
+                                        <div class="form-group video-options"><label>GOP Size</label>
+                                             <div class="input-with-presets">
+                                                  <input type="number" id="video-gop" placeholder="Auto">
+                                                  <div class="preset-group">
+                                                       <button class="preset-button" data-value="250">250</button>
+                                                       <button class="preset-button" data-value="120">120</button>
+                                                  </div>
+                                             </div>
+                                        </div>
+                                   </div>
+                                   <!-- Audio Tab -->
+                                   <div id="tab-audio" class="tab-content">
+                                        <div class="form-group"><label>Action</label>
+                                             <div class="button-group" id="audio-action">
+                                                  <button class="button-group-item active"
+                                                       data-value="convert">Convert</button>
+                                                  <button class="button-group-item" data-value="copy">Copy</button>
+                                                  <button class="button-group-item" data-value="remove">Remove</button>
+                                             </div>
+                                        </div>
+                                        <div class="audio-options">
+                                             <div class="form-group"><label>Codec</label>
+                                                  <div class="button-group" id="audio-codec">
+                                                       <button class="button-group-item active"
+                                                            data-value="aac">AAC</button>
+                                                       <button class="button-group-item"
+                                                            data-value="libmp3lame">MP3</button>
+                                                       <button class="button-group-item"
+                                                            data-value="libopus">Opus</button>
+                                                       <button class="button-group-item" data-value="flac">FLAC</button>
+                                                  </div>
+                                             </div>
+                                             <div class="form-group"><label>Bitrate (kbps)</label>
+                                                  <div class="button-group" id="audio-bitrate">
+                                                       <button class="button-group-item" data-value="320">320</button>
+                                                       <button class="button-group-item active"
+                                                            data-value="192">192</button>
+                                                       <button class="button-group-item" data-value="128">128</button>
+                                                  </div>
+                                             </div>
+                                             <div class="form-group"><label>Sample Rate</label>
+                                                  <div class="button-group" id="audio-samplerate">
+                                                       <button class="button-group-item active"
+                                                            data-value="">Auto</button>
+                                                       <button class="button-group-item"
+                                                            data-value="48000">48kHz</button>
+                                                       <button class="button-group-item"
+                                                            data-value="44100">44.1kHz</button>
+                                                  </div>
+                                             </div>
+                                        </div>
+                                   </div>
+                                   <!-- Output Tab -->
+                                   <div id="tab-output" class="tab-content">
+                                        <div class="form-group"><label>Container</label>
+                                             <div class="button-group" id="output-container">
+                                                  <button class="button-group-item active" data-value="mp4">MP4</button>
+                                                  <button class="button-group-item" data-value="mkv">MKV</button>
+                                                  <button class="button-group-item" data-value="mov">MOV</button>
+                                                  <button class="button-group-item" data-value="webm">WEBM</button>
+                                             </div>
+                                        </div>
+                                        <div class="form-group"><label>Time Limit</label>
+                                             <input type="text" id="output-time-limit"
+                                                  placeholder="00:00:30 (optional)">
+                                        </div>
+                                        <div class="form-group"><label>Buffer Size (kB)</label>
+                                             <input type="number" id="output-buffer-size" placeholder="Auto">
+                                        </div>
+                                   </div>
+                              </div>
+                              <button class="button-cta" id="add-to-queue-btn" disabled>Add to Queue</button>
+                         </div>
+                         <div class="convert-queue">
+                              <h3><i class="fa-solid fa-list-check"></i> Conversion Queue</h3>
+                              <div id="job-queue-list"></div>
+                         </div>
+                    </div>
+               </div>
+
+               <!-- PAGE: Extract Frames -->
+               <div id="page-extract" class="page">
+                    <div class="page-header">
+                         <h1>Extract Frames</h1>
+                    </div>
+                    <div class="page-content extract-grid">
+                         <div class="extract-settings">
+                              <div class="source-selector">
+                                   <p>Source: <span id="extract-source-file">None</span></p>
+                                   <button class="button" id="browse-file-extract">Select File</button>
+                              </div>
+                              <div class="form-group">
+                                   <label>Frames to Extract (per second of video)</label>
+                                   <div class="input-with-presets">
+                                        <input type="number" id="extract-fps" value="1">
+                                        <div class="preset-group">
+                                             <button class="preset-button" data-value="1">1</button>
+                                             <button class="preset-button" data-value="5">5</button>
+                                             <button class="preset-button" data-value="10">10</button>
+                                        </div>
+                                   </div>
+                              </div>
+                              <div class="form-group">
+                                   <label>Image Format</label>
+                                   <div class="button-group" id="extract-format">
+                                        <button class="button-group-item active" data-value="jpg">JPG</button>
+                                        <button class="button-group-item" data-value="png">PNG</button>
+                                   </div>
+                              </div>
+                              <button class="button-cta" id="extract-start-btn" disabled>Start Extraction</button>
+                         </div>
+                         <div class="extract-status-panel">
+                              <div id="extract-info-display">
+                                   <h3><i class="fa-solid fa-circle-info"></i> Output Estimation</h3>
+                                   <div class="info-grid">
+                                        <p>Video Duration:</p><strong id="extract-info-duration">--:--:--</strong>
+                                        <p>Video FPS:</p><strong id="extract-info-fps">--</strong>
+                                        <p>Total Images:</p><strong id="extract-info-total">~ 0</strong>
+                                   </div>
+                                   <p class="info-note">Select a video to see estimations.</p>
+                              </div>
+                              <div id="extract-job-display" class="hidden">
+                                   <h3><i class="fa-solid fa-bolt"></i> Extraction in Progress</h3>
+                                   <p id="extract-job-status-text">Starting job...</p>
+                                   <div class="status-panel-progress-bar">
+                                        <div id="extract-job-progress"></div>
+                                   </div>
+                                   <div id="extract-job-output-path" class="output-path-display"></div>
+                                   <button class="button hidden" id="extract-open-folder-btn"><i
+                                             class="fa-solid fa-folder-open"></i> Open Output Folder</button>
+                              </div>
+                         </div>
+                    </div>
+               </div>
+
+               <!-- PAGE: Trim & Cut -->
+               <div id="page-trim" class="page">
+                    <div class="page-header">
+                         <h1>Trim & Cut</h1>
+                    </div>
+                    <div class="page-content">
+                         <div class="source-selector">
+                              <p>Source: <span id="trim-source-file">None</span></p><button class="button"
+                                   id="browse-file-trim">Select Video</button>
+                         </div>
+                         <div class="form-grid"><label>Start Time</label><input type="text" id="trim-start"
+                                   placeholder="00:00:00"><label>End Time</label><input type="text" id="trim-end"
+                                   placeholder="00:01:30"></div>
+                         <button class="button-cta" id="trim-start-btn" disabled>Start Trim (Stream Copy)</button>
+                    </div>
+               </div>
+
+               <!-- PAGE: Audio Tools -->
+               <div id="page-audio" class="page">
+                    <div class="page-header">
+                         <h1>Audio Tools</h1>
+                    </div>
+                    <div class="page-content">
+                         <div class="source-selector">
+                              <p>Source: <span id="audio-source-file">None</span></p><button class="button"
+                                   id="browse-file-audio">Select File</button>
+                         </div>
+                         <div class="tool-card">
+                              <h3><i class="fa-solid fa-file-audio"></i> Extract Audio</h3>
+                              <p>Extract the audio track from a video file without re-encoding.</p><button
+                                   class="button-cta" id="extract-audio-btn" disabled>Extract Audio</button>
+                         </div>
+                    </div>
+               </div>
+          </main>
+     </div>
+
+     <footer class="status-bar">
+          <div id="status-text">Ready</div>
+          <div id="status-progress-bar" style="width: 0%;"></div>
+     </footer>
+     <script src="./renderer.js"></script>
+</body>
+
+</html>
