@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
-const fs = require("fs");
+const fs = require("fs/promises");
 const { spawn } = require("child_process");
 
 let mainWindow;
@@ -19,9 +19,10 @@ const ffprobePath = path.join(
   process.platform === "win32" ? "ffprobe.exe" : "ffprobe"
 );
 
-const tempDir = path.join(app.getPath("userData"), "thumbnails");
-if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir);
+const tempDir = path.join(app.getPath("userData"), "temp");
+
+async function initialize() {
+  await fs.mkdir(tempDir, { recursive: true });
 }
 
 function buildCommandArgs(jobType, options) {
@@ -34,28 +35,22 @@ function buildCommandArgs(jobType, options) {
       if (video.codec === "copy") {
         args.push("-c:v", "copy");
       } else {
-        args.push("-c:v", video.codec);
-        if (video.crf) args.push("-crf", video.crf);
+        args.push("-c:v", video.codec, "-crf", video.crf);
         if (video.bitrate) args.push("-b:v", `${video.bitrate}k`);
         if (video.resolution) args.push("-vf", `scale=${video.resolution}`);
         if (video.framerate) args.push("-r", video.framerate);
-        if (video.pix_fmt) args.push("-pix_fmt", video.pix_fmt);
-        if (video.gop) args.push("-g", video.gop);
       }
       if (audio.action === "copy") {
         args.push("-c:a", "copy");
       } else if (audio.action === "convert") {
         args.push("-c:a", audio.codec);
         if (audio.bitrate) args.push("-b:a", `${audio.bitrate}k`);
-        if (audio.samplerate) args.push("-ar", audio.samplerate);
       } else if (audio.action === "remove") {
         args.push("-an");
       }
       if (output.timeLimit) args.push("-t", output.timeLimit);
-      if (output.bufferSize) args.push("-bufsize", `${output.bufferSize}k`);
       args.push("-y", outputFile);
       break;
-
     case "TRIM":
       const { trim } = options.settings;
       if (trim.start) args.push("-ss", trim.start);
@@ -63,23 +58,51 @@ function buildCommandArgs(jobType, options) {
       args.push("-c", "copy");
       args.push("-y", outputFile);
       break;
-
     case "EXTRACT_AUDIO":
       args.push("-vn", "-c:a", "copy", "-y", outputFile);
       break;
-
     case "EXTRACT_FRAMES":
       const { fps, format } = options.settings;
       args.push("-vf", `fps=${fps}`);
-      if (format === "jpg") {
-        args.push("-q:v", "2"); // Add quality setting for JPG
-      }
+      if (format === "jpg") args.push("-q:v", "2");
       const outputPattern = path.join(outputFile, `frame-%05d.${format}`);
       args.push(outputPattern);
       break;
   }
-
   return args;
+}
+
+function runFFmpeg(jobId, args, onProgress) {
+  return new Promise((resolve, reject) => {
+    const ffmpeg = spawn(ffmpegPath, args);
+    mainWindow.webContents.send("job-feedback", [
+      { jobId, type: "start", message: "Process started." },
+    ]);
+
+    ffmpeg.stderr.on("data", (data) => {
+      const line = data.toString();
+      const feedback = onProgress(line);
+      mainWindow.webContents.send("job-feedback", [
+        { jobId, type: "log", message: line, ...feedback },
+      ]);
+    });
+
+    ffmpeg.on("close", (code) => {
+      const status = code === 0 ? "success" : "error";
+      const message = `Process finished with code ${code}.`;
+      mainWindow.webContents.send("job-feedback", [
+        { jobId, type: status, message },
+      ]);
+      code === 0 ? resolve() : reject(new Error(message));
+    });
+
+    ffmpeg.on("error", (err) => {
+      mainWindow.webContents.send("job-feedback", [
+        { jobId, type: "error", message: `Process error: ${err.message}` },
+      ]);
+      reject(err);
+    });
+  });
 }
 
 function createWindow() {
@@ -92,18 +115,20 @@ function createWindow() {
       preload: path.join(__dirname, "..", "renderer", "preload.js"),
     },
     titleBarStyle: "hidden",
-    titleBarOverlay: {
-      color: "#ffffff",
-      symbolColor: "#2d3748",
-      height: 40,
-    },
+    titleBarOverlay: { color: "#ffffff", symbolColor: "#2d3748", height: 40 },
     backgroundColor: "#ffffff",
+    icon: path.join(__dirname, "..", "..", "assets", "icon.png"),
   });
   mainWindow.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
-  // if (isDev) mainWindow.webContents.openDevTools();
+  if (isDev) {
+    mainWindow.webContents.openDevTools();
+  }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await initialize();
+  createWindow();
+});
 app.on("window-all-closed", () => process.platform !== "darwin" && app.quit());
 app.on(
   "activate",
@@ -120,9 +145,8 @@ ipcMain.on("set-title-bar-theme", (event, theme) => {
 
 ipcMain.handle(
   "dialog:openFile",
-  async () =>
-    (await dialog.showOpenDialog(mainWindow, { properties: ["openFile"] }))
-      .filePaths[0] || null
+  async (event, options) =>
+    (await dialog.showOpenDialog(mainWindow, options)).filePaths
 );
 ipcMain.handle(
   "dialog:openDirectory",
@@ -136,6 +160,9 @@ ipcMain.handle(
     (await dialog.showSaveDialog(mainWindow, options)).filePath || null
 );
 ipcMain.on("shell:openPath", (event, path) => shell.openPath(path));
+ipcMain.on("shell:showItemInFolder", (event, path) =>
+  shell.showItemInFolder(path)
+);
 
 ipcMain.handle(
   "get-media-info",
@@ -163,79 +190,135 @@ ipcMain.handle(
 
 ipcMain.on("run-job", (event, { jobId, jobType, options }) => {
   const args = buildCommandArgs(jobType, options);
-  console.log(`Spawning FFmpeg [${jobType}]: ${ffmpegPath} ${args.join(" ")}`);
-  const ffmpeg = spawn(ffmpegPath, args);
-
-  mainWindow.webContents.send("job-feedback", [
-    { jobId, type: "start", message: `Process started.` },
-  ]);
-
-  ffmpeg.stderr.on("data", (data) => {
-    const line = data.toString();
-    let feedback = { jobId, type: "log", message: line };
-
+  const duration = parseFloat(options.sourceInfo.format.duration) || 0;
+  runFFmpeg(jobId, args, (line) => {
     if (jobType === "EXTRACT_FRAMES") {
       const frameMatch = line.match(/frame=\s*(\d+)/);
-      if (frameMatch) {
-        feedback.frame = parseInt(frameMatch[1], 10);
-        feedback.totalFrames = options.totalFrames;
-      }
+      if (frameMatch)
+        return {
+          frame: parseInt(frameMatch[1], 10),
+          totalFrames: options.totalFrames,
+        };
     } else {
       const progressMatch = line.match(/time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
-      const duration = parseFloat(options.sourceInfo.format.duration) || 0;
       if (progressMatch && duration > 0) {
         const [, h, m, s, ms] = progressMatch.map(Number);
         const currentTime = h * 3600 + m * 60 + s + ms / 100;
-        const effectiveDuration = options.settings?.output?.timeLimit
-          ? new Date(
-              `1970-01-01T${options.settings.output.timeLimit}Z`
-            ).getTime() / 1000
-          : duration;
-        feedback.progress = Math.min(
-          100,
-          (currentTime / effectiveDuration) * 100
-        );
+        return { progress: Math.min(100, (currentTime / duration) * 100) };
       }
     }
-    mainWindow.webContents.send("job-feedback", [feedback]);
-  });
+    return {};
+  }).catch(console.error);
+});
 
-  ffmpeg.on("close", (code) => {
-    const status = code === 0 ? "success" : "error";
-    const message = `Process finished with code ${code}.`;
+ipcMain.on("run-stitch-job", async (event, { jobId, files, outputFile }) => {
+  const listPath = path.join(tempDir, `stitch-list-${jobId}.txt`);
+  const fileContent = files
+    .map((f) => `file '${f.replace(/'/g, "'\\''")}'`)
+    .join("\n");
+  await fs.writeFile(listPath, fileContent);
+
+  const args = [
+    "-f",
+    "concat",
+    "-safe",
+    "0",
+    "-i",
+    listPath,
+    "-c",
+    "copy",
+    "-y",
+    outputFile,
+  ];
+
+  try {
+    await runFFmpeg(jobId, args, (line) => ({}));
     mainWindow.webContents.send("job-feedback", [
-      { jobId, type: status, message, totalFrames: options.totalFrames },
+      { jobId, type: "success", outputFile },
     ]);
-  });
-  ffmpeg.on("error", (err) =>
-    mainWindow.webContents.send("job-feedback", [
-      { jobId, type: "error", message: `Process error: ${err.message}` },
-    ])
-  );
+  } catch (e) {
+    console.error(e);
+  } finally {
+    await fs.unlink(listPath);
+  }
 });
 
-ipcMain.handle("generate-preview", (event, filePath) => {
-  return new Promise((resolve, reject) => {
-    const thumbnailPath = path.join(tempDir, `thumb-${Date.now()}.jpg`);
-    const args = [
-      "-i",
-      filePath,
-      "-ss",
-      "00:00:01.000",
-      "-vframes",
-      "1",
-      "-vf",
-      "scale=320:-1",
-      "-q:v",
-      "3",
-      thumbnailPath,
-    ];
-    const ffmpeg = spawn(ffmpegPath, args);
-    ffmpeg.on("close", (code) =>
-      code === 0
-        ? resolve(thumbnailPath)
-        : reject("Failed to generate thumbnail.")
-    );
-    ffmpeg.on("error", (err) => reject(err));
-  });
+ipcMain.on("run-gif-job", async (event, { jobId, options }) => {
+  const { inputFile, outputFile, settings } = options;
+  const { start, end, fps, width } = settings;
+  const palettePath = path.join(tempDir, `palette-${jobId}.png`);
+
+  const paletteArgs = [
+    "-i",
+    inputFile,
+    "-ss",
+    start,
+    "-to",
+    end,
+    "-vf",
+    `fps=${fps},scale=${width}:-1:flags=lanczos,palettegen`,
+    "-y",
+    palettePath,
+  ];
+  const gifArgs = [
+    "-i",
+    inputFile,
+    "-ss",
+    start,
+    "-to",
+    end,
+    "-i",
+    palettePath,
+    "-lavfi",
+    `fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse`,
+    "-y",
+    outputFile,
+  ];
+
+  try {
+    await runFFmpeg(jobId, paletteArgs, () => ({
+      progress: 25,
+      statusText: "Generating palette...",
+    }));
+    await runFFmpeg(jobId, gifArgs, () => ({
+      progress: 75,
+      statusText: "Creating GIF...",
+    }));
+    mainWindow.webContents.send("job-feedback", [
+      { jobId, type: "success", outputFile },
+    ]);
+  } catch (e) {
+    console.error(e);
+  } finally {
+    await fs.unlink(palettePath);
+  }
 });
+
+ipcMain.handle(
+  "generate-preview",
+  (event, filePath) =>
+    new Promise((resolve, reject) => {
+      const thumbnailPath = path.join(tempDir, `thumb-${Date.now()}.jpg`);
+      const args = [
+        "-i",
+        filePath,
+        "-ss",
+        "00:00:01.000",
+        "-vframes",
+        "1",
+        "-vf",
+        "scale=640:-1",
+        "-q:v",
+        "3",
+        "-y",
+        thumbnailPath,
+      ];
+      const ffmpeg = spawn(ffmpegPath, args);
+      ffmpeg.on("close", (code) =>
+        code === 0
+          ? resolve(thumbnailPath)
+          : reject("Failed to generate thumbnail.")
+      );
+      ffmpeg.on("error", (err) => reject(err));
+    })
+);
