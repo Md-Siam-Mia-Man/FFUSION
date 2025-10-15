@@ -1,11 +1,9 @@
-# FFusion
-
-![FFusion Banner](https://user-images.githubusercontent.com/26467490/196123447-380d6438-2325-45a8-b57f-05047b05421a.png)
+<img src="./assets/Banner.png"></img>
 
 <p align="center">
-  <img alt="Release" src="https://img.shields.io/github/v/release/your-username/ffusion?style=for-the-badge">
+  <img alt="Release" src="https://img.shields.io/github/v/release/Md-Siam-Mia-Man/ffusion?style=for-the-badge">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-0078D6?style=for-the-badge">
-  <img alt="License" src="https://img.shields.io/github/license/your-username/ffusion?style=for-the-badge&color=48bb78">
+  <img alt="License" src="https://img.shields.io/github/license/Md-Siam-Mia-Man/ffusion?style=for-the-badge&color=48bb78">
 </p>
 
 **FFusion** is a powerful, modern desktop GUI for the [FFmpeg](https://ffmpeg.org/) command-line tool. Built with Electron, it's designed to be a versatile media toolkit that simplifies your video and audio processing workflow without sacrificing control.
