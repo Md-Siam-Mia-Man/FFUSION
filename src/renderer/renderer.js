@@ -1,170 +1,193 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // --- GLOBAL STATE ---
   let currentFile = null;
+  let stitchFiles = [];
 
-  // --- DOM ELEMENT CACHE ---
   const dom = {
     navItems: document.querySelectorAll(".nav-item"),
     pages: document.querySelectorAll(".page"),
     themeToggleBtn: document.getElementById("theme-toggle-btn"),
     statusText: document.getElementById("status-text"),
     statusBarProgress: document.getElementById("status-progress-bar"),
-    browseFileDashboardBtn: document.getElementById("browse-file-dashboard"),
+    clearFileBtn: document.getElementById("clear-file-btn"),
+    dashboardHeaderControls: document.getElementById(
+      "dashboard-header-controls"
+    ),
     dashboardWelcome: document.getElementById("dashboard-welcome"),
-    dashboardPreview: document.getElementById("dashboard-preview"),
-    dashboardInfoPanel: document.getElementById("dashboard-info"),
-    browseFileInspectBtn: document.getElementById("browse-file-inspect"),
-    inspectContainer: document.getElementById("inspect-container"),
+    dashboardContent: document.getElementById("dashboard-content"),
+    dashboardPreviewContainer: document.getElementById(
+      "dashboard-preview-container"
+    ),
+    dashboardActionsContainer: document.getElementById(
+      "dashboard-actions-container"
+    ),
+    dashboardInspector: document.getElementById("dashboard-inspector"),
+    stitchAddVideosBtn: document.getElementById("stitch-add-videos-btn"),
+    stitchFileList: document.getElementById("stitch-file-list"),
+    stitchStartBtn: document.getElementById("stitch-start-btn"),
     convertPage: document.getElementById("page-convert"),
     convertSourceFile: document.getElementById("convert-source-file"),
-    convertTabs: document.querySelectorAll(".tab-item"),
-    convertTabContents: document.querySelectorAll(
-      ".convert-settings .tab-content"
-    ),
     addToQueueBtn: document.getElementById("add-to-queue-btn"),
     jobQueueList: document.getElementById("job-queue-list"),
     trimPage: document.getElementById("page-trim"),
     trimSourceFile: document.getElementById("trim-source-file"),
     trimStartBtn: document.getElementById("trim-start-btn"),
-    trimStartInput: document.getElementById("trim-start"),
-    trimEndInput: document.getElementById("trim-end"),
-    audioPage: document.getElementById("page-audio"),
+    createGifBtn: document.getElementById("create-gif-btn"),
+    gifWidthInput: document.getElementById("gif-width"),
+    gifFpsInput: document.getElementById("gif-fps"),
+    trimVideoPlayer: document.getElementById("trim-video-player"),
+    trimPlayBtn: document.getElementById("trim-play-btn"),
+    trimCurrentTime: document.getElementById("trim-current-time"),
+    trimDuration: document.getElementById("trim-duration"),
+    trimTimelineContainer: document.querySelector(".timeline-container"),
+    trimTimelineSelection: document.querySelector(".timeline-track-selection"),
+    trimPlayhead: document.querySelector(".timeline-playhead"),
+    trimHandleStart: document.getElementById("trim-handle-start"),
+    trimHandleEnd: document.getElementById("trim-handle-end"),
+    trimStartTimeInput: document.getElementById("trim-start-time"),
+    trimEndTimeInput: document.getElementById("trim-end-time"),
     audioSourceFile: document.getElementById("audio-source-file"),
     extractAudioBtn: document.getElementById("extract-audio-btn"),
-    extractPage: document.getElementById("page-extract"),
-    extractSourceFile: document.getElementById("extract-source-file"),
-    extractFpsInput: document.getElementById("extract-fps"),
-    extractStartBtn: document.getElementById("extract-start-btn"),
-    extractInfoDuration: document.getElementById("extract-info-duration"),
-    extractInfoFps: document.getElementById("extract-info-fps"),
-    extractInfoTotal: document.getElementById("extract-info-total"),
-    extractInfoDisplay: document.getElementById("extract-info-display"),
-    extractJobDisplay: document.getElementById("extract-job-display"),
-    extractJobStatusText: document.getElementById("extract-job-status-text"),
-    extractJobProgress: document.getElementById("extract-job-progress"),
-    extractJobOutputPath: document.getElementById("extract-job-output-path"),
-    extractOpenFolderBtn: document.getElementById("extract-open-folder-btn"),
   };
 
-  // --- INITIALIZATION ---
   setupEventListeners();
 
-  // --- EVENT LISTENERS ---
+  function clearFile() {
+    currentFile = null;
+    dom.dashboardWelcome.classList.remove("hidden");
+    dom.dashboardContent.classList.add("hidden");
+    dom.dashboardHeaderControls.classList.add("hidden");
+
+    document
+      .querySelectorAll("span[id$='-source-file']")
+      .forEach((span) => (span.textContent = "None"));
+    dom.addToQueueBtn.disabled = true;
+    dom.trimStartBtn.disabled = true;
+    dom.createGifBtn.disabled = true;
+    dom.extractAudioBtn.disabled = true;
+
+    dom.trimVideoPlayer.src = "";
+    dom.trimStartTimeInput.value = "00:00:00.000";
+    dom.trimEndTimeInput.value = "00:00:00.000";
+    updateStatus("Ready", "ready");
+  }
+
   function setupEventListeners() {
     dom.themeToggleBtn.addEventListener("click", toggleTheme);
     dom.navItems.forEach((item) =>
       item.addEventListener("click", () => navigateTo(item.dataset.page))
     );
+    dom.clearFileBtn.addEventListener("click", clearFile);
 
-    document.querySelectorAll(".button[id^='browse-file-']").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const filePath = await window.api.openFile();
-        if (filePath) loadFile(filePath);
-      });
-    });
+    document
+      .querySelectorAll(".button[id^='browse-file-']")
+      .forEach((btn) =>
+        btn.addEventListener("click", () => handleBrowseFile({}))
+      );
+    document
+      .querySelector("#dashboard-welcome .button")
+      .addEventListener("click", () => handleBrowseFile({}));
 
     const appBody = document.body;
     appBody.addEventListener(
       "dragover",
       (e) => {
         e.preventDefault();
-        dom.dashboardWelcome.classList.add("drag-over");
+        dom.dashboardWelcome
+          .querySelector(".drop-zone")
+          .classList.add("drag-over");
       },
       false
     );
     appBody.addEventListener(
       "dragleave",
-      () => dom.dashboardWelcome.classList.remove("drag-over"),
+      () =>
+        dom.dashboardWelcome
+          .querySelector(".drop-zone")
+          .classList.remove("drag-over"),
       false
     );
     appBody.addEventListener(
       "drop",
       (e) => {
         e.preventDefault();
-        dom.dashboardWelcome.classList.remove("drag-over");
-        if (e.dataTransfer.files[0])
-          loadFile(e.dataTransfer.files[0].path, true);
+        dom.dashboardWelcome
+          .querySelector(".drop-zone")
+          .classList.remove("drag-over");
+        if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0].path);
       },
       false
     );
 
-    dom.convertTabs.forEach((tab) =>
-      tab.addEventListener("click", handleConvertTabClick)
-    );
-    dom.addToQueueBtn.addEventListener("click", addConversionJobToQueue);
-    dom.trimStartBtn.addEventListener("click", runTrimJob);
-    dom.extractAudioBtn.addEventListener("click", runExtractAudioJob);
-    dom.extractStartBtn.addEventListener("click", runExtractFramesJob);
-    dom.extractFpsInput.addEventListener("input", updateExtractEstimation);
-    dom.extractOpenFolderBtn.addEventListener("click", () => {
-      const path = dom.extractOpenFolderBtn.dataset.path;
-      if (path) window.api.openPath(path);
+    dom.dashboardActionsContainer.addEventListener("click", (e) => {
+      const card = e.target.closest(".action-card");
+      if (card) navigateTo(card.dataset.page);
     });
+    dom.dashboardInspector.addEventListener("click", handleInspectorCopy);
+
+    dom.stitchAddVideosBtn.addEventListener("click", handleStitchAdd);
+    dom.stitchFileList.addEventListener("click", handleStitchRemove);
+    dom.stitchStartBtn.addEventListener("click", runStitchJob);
+    setupDragAndDrop(dom.stitchFileList, stitchFiles, renderStitchList);
+
+    dom.addToQueueBtn.addEventListener("click", addConversionJobToQueue);
+    dom.jobQueueList.addEventListener("click", (e) => {
+      const button = e.target.closest(".show-file-btn");
+      if (button) window.api.showItemInFolder(button.dataset.path);
+    });
+
+    dom.trimStartBtn.addEventListener("click", runTrimJob);
+    dom.createGifBtn.addEventListener("click", runGifJob);
+    dom.extractAudioBtn.addEventListener("click", runExtractAudioJob);
 
     window.api.onJobFeedback(([feedback]) => handleJobFeedback(feedback));
 
-    setupCustomComponentHandlers(dom.convertPage);
-    setupCustomComponentHandlers(dom.extractPage);
+    setupCustomComponentHandlers(document.getElementById("page-convert"));
     setupSlider(document.getElementById("video-crf-slider"));
+    setupTrimPage();
     updateConvertFormState();
-
-    dom.inspectContainer.addEventListener("click", (e) => {
-      const button = e.target.closest(".copy-json-btn");
-      if (button) {
-        const rawData = button.dataset.raw;
-        navigator.clipboard.writeText(
-          JSON.stringify(JSON.parse(rawData), null, 2)
-        );
-        button.innerHTML = "Copied!";
-        setTimeout(
-          () =>
-            (button.innerHTML = `<i class="fa-solid fa-paste"></i> Copy JSON`),
-          2000
-        );
-      }
-    });
   }
 
-  // --- CUSTOM COMPONENT LOGIC ---
+  async function handleBrowseFile({ multiple = false }) {
+    const filePaths = await window.api.openFile({
+      properties: multiple ? ["openFile", "multiSelections"] : ["openFile"],
+    });
+    if (filePaths && filePaths.length > 0) loadFile(filePaths[0]);
+    return filePaths;
+  }
+
   function setupCustomComponentHandlers(container) {
     container.addEventListener("click", (e) => {
-      if (e.target.classList.contains("button-group-item")) {
-        const group = e.target.parentElement;
+      const target = e.target;
+      if (target.classList.contains("button-group-item")) {
+        const group = target.parentElement;
         [...group.children].forEach((child) =>
           child.classList.remove("active")
         );
-        e.target.classList.add("active");
-        group.dataset.value = e.target.dataset.value;
+        target.classList.add("active");
+        group.dataset.value = target.dataset.value;
         if (group.id === "video-codec" || group.id === "audio-action") {
           updateConvertFormState();
         }
-      }
-      if (e.target.classList.contains("preset-button")) {
-        const wrapper = e.target.closest(".input-with-presets, .form-group");
-        const input = wrapper.querySelector("input");
-        if (input) {
-          input.value = e.target.dataset.value;
-          input.dispatchEvent(new Event("input"));
-        }
-        const slider = wrapper.querySelector(".slider-container");
-        if (slider) updateSlider(slider, e.target.dataset.value);
       }
     });
   }
 
   function setupSlider(slider) {
-    const thumb = slider.querySelector(".slider-thumb");
-    const track = slider.querySelector(".slider-track");
     let isDragging = false;
     const moveHandler = (e) => {
       if (!isDragging) return;
-      const rect = track.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const width = rect.width;
-      let percent = Math.max(0, Math.min(1, x / width));
-      const min = parseFloat(slider.dataset.min);
-      const max = parseFloat(slider.dataset.max);
-      const value = Math.round(min + percent * (max - min));
+      const rect = slider
+        .querySelector(".slider-track")
+        .getBoundingClientRect();
+      const percent = Math.max(
+        0,
+        Math.min(1, (e.clientX - rect.left) / rect.width)
+      );
+      const value = Math.round(
+        parseFloat(slider.dataset.min) +
+          percent *
+            (parseFloat(slider.dataset.max) - parseFloat(slider.dataset.min))
+      );
       updateSlider(slider, value);
     };
     const upHandler = () => {
@@ -182,8 +205,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateSlider(slider, value) {
-    const min = parseFloat(slider.dataset.min);
-    const max = parseFloat(slider.dataset.max);
+    const min = parseFloat(slider.dataset.min),
+      max = parseFloat(slider.dataset.max);
     const clampedValue = Math.max(min, Math.min(max, value));
     slider.dataset.value = clampedValue;
     slider.querySelector(".slider-value").textContent = clampedValue;
@@ -196,26 +219,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const isVideoCopy =
       document.getElementById("video-codec").dataset.value === "copy";
     document
-      .querySelectorAll(".video-options")
+      .querySelectorAll("#page-convert .video-options")
       .forEach((el) => el.classList.toggle("disabled", isVideoCopy));
     const showAudioOptions =
       document.getElementById("audio-action").dataset.value === "convert";
     document
-      .querySelectorAll(".audio-options")
+      .querySelectorAll("#page-convert .audio-options")
       .forEach((el) => el.classList.toggle("disabled", !showAudioOptions));
   }
 
-  // --- STATE MANAGEMENT & UI UPDATES ---
-  async function loadFile(filePath, autoNavigateToInspect = false) {
+  async function loadFile(filePath) {
     try {
       updateStatus(`Probing file...`, "processing");
       const mediaInfo = await window.api.getMediaInfo(filePath);
       currentFile = { path: filePath, info: mediaInfo };
       updateStatus(`Loaded: ${filePath.split(/[\\/]/).pop()}`, "ready");
       updateAllPagesWithNewFile();
-      if (autoNavigateToInspect) navigateTo("page-inspect");
     } catch (error) {
-      console.error(error);
       currentFile = null;
       updateStatus(`Error loading file: ${error}`, "error");
     }
@@ -227,104 +247,75 @@ document.addEventListener("DOMContentLoaded", () => {
     const fileName = path.split(/[\\/]/).pop();
     const videoStream = info.streams.find((s) => s.codec_type === "video");
 
-    // Dashboard
     dom.dashboardWelcome.classList.add("hidden");
-    dom.dashboardPreview.classList.remove("hidden");
-    dom.dashboardInfoPanel.classList.remove("hidden");
+    dom.dashboardContent.classList.remove("hidden");
+    dom.dashboardHeaderControls.classList.remove("hidden");
+
     if (videoStream) {
-      try {
-        const thumbPath = await window.api.generatePreview(path);
-        dom.dashboardPreview.innerHTML = `
-            <img src="${thumbPath.replace(
-              /\\/g,
-              "/"
-            )}" class="preview-image" alt="Video Thumbnail">
-            <div class="preview-details">
-                <h2 title="${path}">${fileName}</h2>
-                <p>${videoStream.width}x${
-          videoStream.height
-        } &nbsp;&bull;&nbsp; ${format.duration(info.format.duration)}</p>
-            </div>`;
-      } catch (e) {
-        console.error(e);
-      }
+      const thumbPath = await window.api.generatePreview(path);
+      dom.dashboardPreviewContainer.innerHTML = `<img src="file://${thumbPath.replace(/\\/g, "/")}" class="preview-image" alt="Thumbnail"><div class="preview-details"><h2 title="${path}">${fileName}</h2><p>${videoStream.width}x${videoStream.height} &nbsp;&bull;&nbsp; ${format.duration(info.format.duration)}</p></div>`;
     } else {
-      dom.dashboardPreview.innerHTML = `
-        <i class="fa-solid fa-music preview-audio-icon"></i>
-        <div class="preview-details">
-            <h2 title="${path}">${fileName}</h2>
-            <p>${
-              info.streams[0].codec_long_name
-            } &nbsp;&bull;&nbsp; ${format.duration(info.format.duration)}</p>
-        </div>`;
+      dom.dashboardPreviewContainer.innerHTML = `<i class="fa-solid fa-music preview-audio-icon"></i><div class="preview-details"><h2 title="${path}">${fileName}</h2><p>${info.streams[0].codec_long_name} &nbsp;&bull;&nbsp; ${format.duration(info.format.duration)}</p></div>`;
     }
 
+    dom.dashboardActionsContainer.innerHTML = `<div class="action-card" data-page="page-convert"><h3><i class="fa-solid fa-gear"></i> Convert & Process</h3><p>Change format, codec, resolution, and more.</p></div><div class="action-card" data-page="page-trim"><h3><i class="fa-solid fa-scissors"></i> Trim & GIF</h3><p>Visually trim or create animated GIFs.</p></div>`;
     renderInspectorUI(info);
 
-    // Update all source spans and enable buttons
     document
       .querySelectorAll("span[id$='-source-file']")
       .forEach((span) => (span.textContent = path));
     dom.addToQueueBtn.disabled = false;
-    dom.trimStartBtn.disabled = false;
-    dom.extractAudioBtn.disabled = false;
-    dom.extractStartBtn.disabled = !videoStream;
-
-    dom.trimEndInput.value = format.duration(info.format.duration);
-    dom.trimStartInput.value = "00:00:00";
-
-    // Update Extract Page Info
-    if (videoStream) updateExtractEstimation();
-  }
-
-  function updateExtractEstimation() {
-    if (!currentFile) return;
-    const videoStream = currentFile.info.streams.find(
-      (s) => s.codec_type === "video"
+    dom.trimStartBtn.disabled = !videoStream;
+    dom.createGifBtn.disabled = !videoStream;
+    dom.extractAudioBtn.disabled = !info.streams.find(
+      (s) => s.codec_type === "audio"
     );
-    if (!videoStream) return;
-    const duration = parseFloat(currentFile.info.format.duration);
-    const extractFps = parseFloat(dom.extractFpsInput.value) || 0;
-    const totalFrames = Math.floor(duration * extractFps);
 
-    dom.extractInfoDuration.textContent = format.duration(duration);
-    dom.extractInfoFps.textContent = format.frameRate(videoStream.r_frame_rate);
-    dom.extractInfoTotal.textContent = `~ ${totalFrames.toLocaleString()}`;
+    dom.trimVideoPlayer.src = `file://${path.replace(/\\/g, "/")}`;
   }
 
   function renderInspectorUI(mediaInfo) {
-    dom.inspectContainer.innerHTML = "";
     const { format: fileFormat, streams } = mediaInfo;
-    const fileCard = createCard("File", "fa-file-lines", fileFormat);
-    fileCard.querySelector(".card-body").innerHTML = [
+    let cardsHtml = "";
+
+    const fileCardBody = [
       createProperty("Container", fileFormat.format_long_name),
       createProperty("Size", format.bytes(fileFormat.size)),
       createProperty("Duration", format.duration(fileFormat.duration)),
       createProperty("Bitrate", format.bitrate(fileFormat.bit_rate)),
       createProperty("Streams", fileFormat.nb_streams),
     ].join("");
-    dom.inspectContainer.appendChild(fileCard);
+    cardsHtml += createCard("File", "fa-file-lines", fileFormat, fileCardBody);
+
     if (fileFormat.tags && Object.keys(fileFormat.tags).length > 0) {
-      const tagsCard = createCard("Tags", "fa-tags", fileFormat);
-      const tagsBody = tagsCard.querySelector(".card-body");
-      tagsBody.className = "card-body tags-body";
-      tagsBody.innerHTML = Object.entries(fileFormat.tags)
+      const tagsBody = Object.entries(fileFormat.tags)
         .map(
           ([key, value]) =>
-            `<div class="property-key">${format.titleCase(
-              key
-            )}</div><div class="property-value ${
-              value.length > 100 ? "long-text" : ""
-            }" title="${value}">${value}</div>`
+            `<div class="property-key">${format.titleCase(key)}</div><div class="property-value ${value.length > 100 ? "long-text" : ""}" title="${value}">${value}</div>`
         )
         .join("");
-      dom.inspectContainer.appendChild(tagsCard);
+      cardsHtml += createCard(
+        "Tags",
+        "fa-tags",
+        fileFormat.tags,
+        tagsBody,
+        true
+      );
     }
+
     streams.forEach((stream) => {
-      let card;
+      let title, icon, body;
+      const colorInfo = [
+        stream.color_space,
+        stream.color_primaries,
+        stream.color_transfer,
+      ]
+        .filter(Boolean)
+        .join(" / ");
       if (stream.codec_type === "video") {
-        card = createCard(`Video Stream #${stream.index}`, "fa-film", stream);
-        card.querySelector(".card-body").innerHTML = [
+        title = `Video Stream #${stream.index}`;
+        icon = "fa-film";
+        body = [
           createProperty(
             "Codec",
             `${stream.codec_long_name} (${stream.codec_name})`,
@@ -336,18 +327,12 @@ document.addEventListener("DOMContentLoaded", () => {
           createProperty("Pixel Format", stream.pix_fmt, true),
           createProperty("Frame Rate", format.frameRate(stream.r_frame_rate)),
           createProperty("Bitrate", format.bitrate(stream.bit_rate)),
-          createProperty(
-            "Color Space",
-            `${stream.color_space} / ${stream.color_primaries} / ${stream.color_transfer}`
-          ),
+          createProperty("Color Space", colorInfo),
         ].join("");
       } else if (stream.codec_type === "audio") {
-        card = createCard(
-          `Audio Stream #${stream.index}`,
-          "fa-waveform",
-          stream
-        );
-        card.querySelector(".card-body").innerHTML = [
+        title = `Audio Stream #${stream.index}`;
+        icon = "fa-waveform";
+        body = [
           createProperty(
             "Codec",
             `${stream.codec_long_name} (${stream.codec_name})`,
@@ -363,12 +348,9 @@ document.addEventListener("DOMContentLoaded", () => {
           createProperty("Language", stream.tags?.language?.toUpperCase()),
         ].join("");
       } else {
-        card = createCard(
-          `${format.titleCase(stream.codec_type)} Stream #${stream.index}`,
-          "fa-closed-captioning",
-          stream
-        );
-        card.querySelector(".card-body").innerHTML = [
+        title = `${format.titleCase(stream.codec_type || "other")} Stream #${stream.index}`;
+        icon = "fa-closed-captioning";
+        body = [
           createProperty(
             "Codec",
             `${stream.codec_long_name} (${stream.codec_name})`,
@@ -377,35 +359,33 @@ document.addEventListener("DOMContentLoaded", () => {
           createProperty("Language", stream.tags?.language?.toUpperCase()),
         ].join("");
       }
-      if (card) dom.inspectContainer.appendChild(card);
+      cardsHtml += createCard(title, icon, stream, body);
     });
+
+    dom.dashboardInspector.innerHTML = cardsHtml;
   }
 
-  function createCard(title, icon, rawData) {
-    const card = document.createElement("div");
-    card.className = "info-card";
-    card.innerHTML = `<div class="card-header"><h3><i class="fa-solid ${icon}"></i> ${title}</h3><button class="button copy-json-btn" data-raw='${JSON.stringify(
-      rawData
-    )}'><i class="fa-solid fa-paste"></i> Copy JSON</button></div><div class="card-body"></div>`;
-    return card;
+  function createCard(title, icon, rawData, body, isTags = false) {
+    return `<div class="info-card"><div class="card-header"><h3><i class="fa-solid ${icon}"></i> ${title}</h3><button class="button copy-json-btn" data-raw='${JSON.stringify(rawData)}'><i class="fa-solid fa-paste"></i></button></div><div class="card-body ${isTags ? "tags-body" : ""}">${body}</div></div>`;
   }
-
   function createProperty(key, value, isBadge = false) {
-    if (!value || value === "N/A" || value === "0 x 0") return "";
-    return `<div class="property-key">${key}</div><div class="property-value ${
-      isBadge ? "badge" : ""
-    }" title="${value}">${value}</div>`;
+    if (!value || value === "N/A") return "";
+    return `<div class="property-key">${key}</div><div class="property-value ${isBadge ? "badge" : ""}" title="${value}">${value}</div>`;
   }
 
   const format = {
-    bytes: (b, d = 2) => {
-      if (b === 0 || !b) return "0 Bytes";
-      const k = 1024,
-        s = ["Bytes", "KB", "MB", "GB"];
-      const i = Math.floor(Math.log(b) / Math.log(k));
-      return parseFloat((b / Math.pow(k, i)).toFixed(d)) + " " + s[i];
+    bytes: (b) => {
+      if (!b) return "0 Bytes";
+      const i = Math.floor(Math.log(b) / Math.log(1024));
+      return `${parseFloat((b / Math.pow(1024, i)).toFixed(2))} ${["B", "KB", "MB", "GB"][i]}`;
     },
-    duration: (s) => new Date(s * 1000).toISOString().substr(11, 8),
+    duration: (s, ms = false) => {
+      if (!s) return ms ? "00:00:00.000" : "00:00:00";
+      const d = new Date(s * 1000);
+      return ms
+        ? d.toISOString().substr(11, 12)
+        : d.toISOString().substr(11, 8);
+    },
     bitrate: (b) => (b ? `${(b / 1000).toFixed(0)} kb/s` : "N/A"),
     frameRate: (fr) => {
       if (!fr || fr === "0/0") return "N/A";
@@ -429,25 +409,152 @@ document.addEventListener("DOMContentLoaded", () => {
       n.classList.toggle("active", n.dataset.page === pageId)
     );
   }
-
   function toggleTheme() {
     const newTheme = document.body.dataset.theme === "light" ? "dark" : "light";
     document.body.dataset.theme = newTheme;
     window.api.setTitleBarTheme(newTheme);
   }
-
-  function handleConvertTabClick(e) {
-    dom.convertTabs.forEach((tab) => tab.classList.remove("active"));
-    dom.convertTabContents.forEach((content) =>
-      content.classList.remove("active")
-    );
-    e.currentTarget.classList.add("active");
-    document
-      .getElementById(`tab-${e.currentTarget.dataset.tab}`)
-      .classList.add("active");
+  function handleInspectorCopy(e) {
+    const button = e.target.closest(".copy-json-btn");
+    if (button) {
+      navigator.clipboard.writeText(
+        JSON.stringify(JSON.parse(button.dataset.raw), null, 2)
+      );
+      const icon = button.querySelector("i");
+      icon.className = "fa-solid fa-check";
+      setTimeout(() => (icon.className = "fa-solid fa-paste"), 2000);
+    }
   }
 
-  // --- JOB EXECUTION ---
+  async function handleStitchAdd() {
+    const filePaths = await window.api.openFile({
+      properties: ["openFile", "multiSelections"],
+    });
+    if (filePaths) {
+      stitchFiles.push(...filePaths);
+      renderStitchList();
+    }
+  }
+  function handleStitchRemove(e) {
+    if (e.target.classList.contains("remove-stitch-item")) {
+      const index = parseInt(e.target.dataset.index, 10);
+      stitchFiles.splice(index, 1);
+      renderStitchList();
+    }
+  }
+  function renderStitchList() {
+    dom.stitchFileList.innerHTML = stitchFiles
+      .map(
+        (file, index) =>
+          `<div class="stitch-file-item" draggable="true" data-index="${index}"><i class="fa-solid fa-grip-lines"></i><span title="${file}">${file.split(/[\\/]/).pop()}</span><button class="remove-stitch-item" data-index="${index}">&times;</button></div>`
+      )
+      .join("");
+    dom.stitchStartBtn.disabled = stitchFiles.length < 2;
+  }
+
+  function setupDragAndDrop(container, list, renderFn) {
+    let dragSrcEl = null;
+    container.addEventListener("dragstart", (e) => {
+      dragSrcEl = e.target;
+      e.dataTransfer.effectAllowed = "move";
+      e.target.classList.add("dragging");
+    });
+    container.addEventListener("dragend", (e) =>
+      e.target.classList.remove("dragging")
+    );
+    container.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      return false;
+    });
+    container.addEventListener("drop", (e) => {
+      e.stopPropagation();
+      if (dragSrcEl !== e.target) {
+        const fromIndex = parseInt(dragSrcEl.dataset.index);
+        const toIndex = parseInt(
+          e.target.closest(".stitch-file-item").dataset.index
+        );
+        const item = list.splice(fromIndex, 1)[0];
+        list.splice(toIndex, 0, item);
+        renderFn();
+      }
+      return false;
+    });
+  }
+
+  function setupTrimPage() {
+    let isDraggingStart = false,
+      isDraggingEnd = false;
+    dom.trimVideoPlayer.addEventListener("loadedmetadata", () => {
+      const duration = dom.trimVideoPlayer.duration;
+      dom.trimDuration.textContent = format.duration(duration);
+      dom.trimEndTimeInput.value = format.duration(duration, true);
+    });
+    dom.trimVideoPlayer.addEventListener("timeupdate", () => {
+      const percent =
+        (dom.trimVideoPlayer.currentTime / dom.trimVideoPlayer.duration) * 100;
+      dom.trimPlayhead.style.left = `${percent}%`;
+      dom.trimCurrentTime.textContent = format.duration(
+        dom.trimVideoPlayer.currentTime
+      );
+    });
+    dom.trimVideoPlayer.addEventListener(
+      "play",
+      () => (dom.trimPlayBtn.className = "fa-solid fa-pause")
+    );
+    dom.trimVideoPlayer.addEventListener(
+      "pause",
+      () => (dom.trimPlayBtn.className = "fa-solid fa-play")
+    );
+    dom.trimPlayBtn.addEventListener("click", () =>
+      dom.trimVideoPlayer.paused
+        ? dom.trimVideoPlayer.play()
+        : dom.trimVideoPlayer.pause()
+    );
+
+    const updateSelection = () => {
+      const start = parseFloat(dom.trimHandleStart.style.left || "0");
+      const end = parseFloat(dom.trimHandleEnd.style.left || "100");
+      dom.trimTimelineSelection.style.left = `${start}%`;
+      dom.trimTimelineSelection.style.width = `${end - start}%`;
+    };
+    const handleMove = (e, handle) => {
+      const rect = dom.trimTimelineContainer.getBoundingClientRect();
+      const percent = Math.max(
+        0,
+        Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)
+      );
+      handle.style.left = `${percent}%`;
+      const time = dom.trimVideoPlayer.duration * (percent / 100);
+      const input =
+        handle === dom.trimHandleStart
+          ? dom.trimStartTimeInput
+          : dom.trimEndTimeInput;
+      input.value = format.duration(time, true);
+      dom.trimVideoPlayer.currentTime = time;
+      updateSelection();
+    };
+    const addDragListeners = (handle) => {
+      handle.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        if (handle === dom.trimHandleStart) isDraggingStart = true;
+        else isDraggingEnd = true;
+        dom.trimVideoPlayer.pause();
+      });
+    };
+    window.addEventListener("mousemove", (e) => {
+      if (isDraggingStart) handleMove(e, dom.trimHandleStart);
+      if (isDraggingEnd) handleMove(e, dom.trimHandleEnd);
+    });
+    window.addEventListener("mouseup", () => {
+      isDraggingStart = false;
+      isDraggingEnd = false;
+    });
+    addDragListeners(dom.trimHandleStart);
+    addDragListeners(dom.trimHandleEnd);
+    updateSelection();
+  }
+
   async function addConversionJobToQueue() {
     if (!currentFile) return;
     const container = document.getElementById("output-container").dataset.value;
@@ -460,6 +567,7 @@ document.addEventListener("DOMContentLoaded", () => {
       filters: [{ name: "Media File", extensions: [container] }],
     });
     if (!outputPath) return;
+    const jobId = `job-${Date.now()}`;
     const options = {
       inputFile: currentFile.path,
       outputFile: outputPath,
@@ -468,62 +576,35 @@ document.addEventListener("DOMContentLoaded", () => {
         video: {
           codec: document.getElementById("video-codec").dataset.value,
           crf: document.getElementById("video-crf-slider").dataset.value,
-          bitrate: document.getElementById("video-bitrate").value,
-          resolution: document.getElementById("video-resolution").value,
-          framerate: document.getElementById("video-framerate").value,
-          pix_fmt: document.getElementById("video-pix_fmt").dataset.value,
-          gop: document.getElementById("video-gop").value,
         },
         audio: {
           action: document.getElementById("audio-action").dataset.value,
           codec: document.getElementById("audio-codec").dataset.value,
           bitrate: document.getElementById("audio-bitrate").dataset.value,
-          samplerate: document.getElementById("audio-samplerate").dataset.value,
-        },
-        output: {
-          timeLimit: document.getElementById("output-time-limit").value,
-          bufferSize: document.getElementById("output-buffer-size").value,
         },
       },
     };
-    renderJobItem(`job-${Date.now()}`, outputPath);
-    window.api.runJob({
-      jobId: `job-${Date.now()}`,
-      jobType: "CONVERT",
-      options,
-    });
+    renderJobItem(jobId, outputPath);
+    window.api.runJob({ jobId, jobType: "CONVERT", options });
   }
 
-  async function runExtractFramesJob() {
-    if (!currentFile) return;
-    const outputDir = await window.api.openDirectory();
-    if (!outputDir) return updateStatus("Frame extraction cancelled.", "ready");
-
-    const totalFrames = Math.floor(
-      parseFloat(currentFile.info.format.duration) *
-        parseFloat(dom.extractFpsInput.value)
+  async function runStitchJob() {
+    if (stitchFiles.length < 2) return;
+    const firstFilePath = stitchFiles[0];
+    const lastSeparatorIndex = Math.max(
+      firstFilePath.lastIndexOf("/"),
+      firstFilePath.lastIndexOf("\\")
     );
-    const jobId = `extract-${Date.now()}`;
-    const options = {
-      inputFile: currentFile.path,
-      outputFile: outputDir, // For this job type, it's a directory
-      sourceInfo: currentFile.info,
-      totalFrames,
-      settings: {
-        fps: dom.extractFpsInput.value,
-        format: document.getElementById("extract-format").dataset.value,
-      },
-    };
-
-    dom.extractInfoDisplay.classList.add("hidden");
-    dom.extractJobDisplay.classList.remove("hidden");
-    dom.extractOpenFolderBtn.classList.add("hidden");
-    dom.extractJobProgress.style.width = "0%";
-    dom.extractJobStatusText.textContent = "Preparing to extract...";
-    dom.extractJobOutputPath.textContent = outputDir;
-    dom.extractOpenFolderBtn.dataset.path = outputDir;
-
-    window.api.runJob({ jobId, jobType: "EXTRACT_FRAMES", options });
+    const directory = firstFilePath.substring(0, lastSeparatorIndex);
+    const defaultPath = `${directory}/stitched_output.mp4`;
+    const outputFile = await window.api.saveFile({
+      defaultPath,
+      filters: [{ name: "Video", extensions: ["mp4"] }],
+    });
+    if (!outputFile) return;
+    const jobId = `stitch-${Date.now()}`;
+    renderJobItem(jobId, outputFile, "Stitching");
+    window.api.runStitchJob({ jobId, files: stitchFiles, outputFile });
   }
 
   async function runTrimJob() {
@@ -533,20 +614,43 @@ document.addEventListener("DOMContentLoaded", () => {
       "_trimmed$1"
     );
     const outputPath = await window.api.saveFile({ defaultPath });
-    if (!outputPath) return updateStatus("Trim cancelled.", "ready");
+    if (!outputPath) return;
+    const jobId = `trim-${Date.now()}`;
     const options = {
       inputFile: currentFile.path,
       outputFile: outputPath,
       sourceInfo: currentFile.info,
       settings: {
-        trim: { start: dom.trimStartInput.value, end: dom.trimEndInput.value },
+        trim: {
+          start: dom.trimStartTimeInput.value,
+          end: dom.trimEndTimeInput.value,
+        },
       },
     };
-    window.api.runJob({
-      jobId: `trim-${Date.now()}`,
-      jobType: "TRIM",
-      options,
+    renderJobItem(jobId, outputPath, "Trimming");
+    window.api.runJob({ jobId, jobType: "TRIM", options });
+  }
+
+  async function runGifJob() {
+    if (!currentFile) return;
+    const outputPath = await window.api.saveFile({
+      defaultPath: "animated.gif",
+      filters: [{ name: "GIF", extensions: ["gif"] }],
     });
+    if (!outputPath) return;
+    const jobId = `gif-${Date.now()}`;
+    const options = {
+      inputFile: currentFile.path,
+      outputFile: outputPath,
+      settings: {
+        start: dom.trimStartTimeInput.value,
+        end: dom.trimEndTimeInput.value,
+        width: dom.gifWidthInput.value,
+        fps: dom.gifFpsInput.value,
+      },
+    };
+    renderJobItem(jobId, outputPath, "Creating GIF");
+    window.api.runGifJob({ jobId, options });
   }
 
   async function runExtractAudioJob() {
@@ -554,8 +658,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const audioStream = currentFile.info.streams.find(
       (s) => s.codec_type === "audio"
     );
-    if (!audioStream)
-      return updateStatus("Error: No audio stream found.", "error");
+    if (!audioStream) return;
     const ext =
       audioStream.codec_name === "aac" ? "m4a" : audioStream.codec_name;
     const defaultPath = currentFile.path.replace(
@@ -566,100 +669,65 @@ document.addEventListener("DOMContentLoaded", () => {
       defaultPath,
       filters: [{ name: "Audio", extensions: [ext] }],
     });
-    if (!outputPath) return updateStatus("Extraction cancelled.", "ready");
+    if (!outputPath) return;
+    const jobId = `extract-audio-${Date.now()}`;
     const options = {
       inputFile: currentFile.path,
       outputFile: outputPath,
       sourceInfo: currentFile.info,
     };
-    window.api.runJob({
-      jobId: `extract-${Date.now()}`,
-      jobType: "EXTRACT_AUDIO",
-      options,
-    });
+    renderJobItem(jobId, outputPath, "Extracting Audio");
+    window.api.runJob({ jobId, jobType: "EXTRACT_AUDIO", options });
   }
 
-  // --- JOB RENDERING & FEEDBACK ---
-  function renderJobItem(jobId, outputPath) {
+  function renderJobItem(jobId, outputPath, type = "Processing") {
     const jobEl = document.createElement("div");
     jobEl.className = "job-item";
     jobEl.id = jobId;
-    jobEl.innerHTML = `<div class="job-header"><span>${outputPath
-      .split(/[\\/]/)
-      .pop()}</span><span class="job-status">Queued</span></div><div class="job-progress-bar"><div></div></div>`;
+    jobEl.innerHTML = `<div class="job-header"><span class="job-filename" title="${outputPath}">${outputPath.split(/[\\/]/).pop()}</span><span class="job-status">Queued</span></div><div class="job-progress-bar"><div></div></div><div class="job-footer hidden"><span>${type}</span><button class="button show-file-btn"><i class="fa-solid fa-folder"></i> Show File</button></div>`;
     dom.jobQueueList.prepend(jobEl);
   }
 
   function handleJobFeedback(feedback) {
-    const { jobId, type, message, progress, frame, totalFrames } = feedback;
+    const {
+      jobId,
+      type,
+      message,
+      progress,
+      frame,
+      totalFrames,
+      outputFile,
+      statusText,
+    } = feedback;
+    const jobEl = document.getElementById(jobId);
+    if (!jobEl) return;
+    const statusEl = jobEl.querySelector(".job-status");
+    const progressEl = jobEl.querySelector(".job-progress-bar div");
+    const footerEl = jobEl.querySelector(".job-footer");
 
-    if (jobId.startsWith("extract-")) {
-      switch (type) {
-        case "start":
-          dom.extractJobStatusText.textContent = `Process started...`;
-          break;
-        case "log":
-          if (frame && totalFrames) {
-            const percent = Math.min(100, (frame / totalFrames) * 100);
-            dom.extractJobProgress.style.width = `${percent}%`;
-            dom.extractJobStatusText.textContent = `Extracting frame ${frame} of ${totalFrames}...`;
-          }
-          break;
-        case "success":
-          dom.extractJobProgress.style.width = `100%`;
-          dom.extractJobStatusText.textContent = `Extraction complete! ${totalFrames} frames saved.`;
-          dom.extractOpenFolderBtn.classList.remove("hidden");
-          updateStatus("Frame extraction successful.", "success");
-          break;
-        case "error":
-          dom.extractJobStatusText.textContent = `Error: ${message}`;
-          updateStatus("Frame extraction failed.", "error");
-          break;
-      }
-    } else if (jobId.startsWith("job-")) {
-      const jobEl = document.getElementById(jobId);
-      if (!jobEl) return;
-      const statusEl = jobEl.querySelector(".job-status");
-      const progressEl = jobEl.querySelector(".job-progress-bar div");
-      switch (type) {
-        case "start":
-          statusEl.textContent = "Processing";
-          jobEl.classList.add("processing");
-          break;
-        case "log":
-          if (progress !== undefined) progressEl.style.width = `${progress}%`;
-          break;
-        case "success":
-          statusEl.textContent = "Completed";
-          jobEl.className = "job-item success";
-          progressEl.style.width = "100%";
-          break;
-        case "error":
-          statusEl.textContent = "Error";
-          jobEl.className = "job-item error";
-          break;
-      }
-    } else {
-      // Global feedback
-      switch (type) {
-        case "start":
-          updateStatus(message, "processing");
-          break;
-        case "log":
-          if (progress !== undefined) {
-            dom.statusBarProgress.style.width = `${progress}%`;
-            dom.statusText.textContent = `Processing... ${progress.toFixed(
-              1
-            )}%`;
-          }
-          break;
-        case "success":
-          updateStatus(message, "success");
-          break;
-        case "error":
-          updateStatus(message, "error");
-          break;
-      }
+    switch (type) {
+      case "start":
+        statusEl.textContent = "Processing";
+        jobEl.classList.add("processing");
+        break;
+      case "log":
+        if (progress !== undefined) progressEl.style.width = `${progress}%`;
+        if (statusText) statusEl.textContent = statusText;
+        break;
+      case "success":
+        statusEl.textContent = "Completed";
+        jobEl.className = "job-item success";
+        progressEl.style.width = "100%";
+        footerEl.classList.remove("hidden");
+        if (outputFile)
+          footerEl.querySelector(".show-file-btn").dataset.path = outputFile;
+        break;
+      case "error":
+        statusEl.textContent = `Error`;
+        jobEl.className = "job-item error";
+        progressEl.style.width = "100%";
+        jobEl.querySelector(".job-filename").title = message;
+        break;
     }
   }
 
@@ -668,8 +736,11 @@ document.addEventListener("DOMContentLoaded", () => {
     dom.statusBarProgress.style.transition =
       state === "processing" ? "width 0.3s ease" : "none";
     if (state !== "processing") dom.statusBarProgress.style.width = "0%";
-    if (state === "success") dom.statusText.style.color = "var(--success)";
-    else if (state === "error") dom.statusText.style.color = "var(--error)";
-    else dom.statusText.style.color = "var(--text-secondary)";
+    dom.statusText.style.color =
+      state === "success"
+        ? "var(--success)"
+        : state === "error"
+          ? "var(--error)"
+          : "var(--text-secondary)";
   }
 });
