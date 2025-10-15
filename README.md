@@ -8,7 +8,7 @@
   <img alt="License" src="https://img.shields.io/github/license/your-username/ffusion?style=for-the-badge&color=48bb78">
 </p>
 
-**FFusion** is a powerful, modern desktop GUI for the [FFmpeg](https://ffmpeg.org/) command-line tool. Built with Electron and Node.js, it's designed to simplify your video and audio processing workflow without sacrificing control.
+**FFusion** is a powerful, modern desktop GUI for the [FFmpeg](https://ffmpeg.org/) command-line tool. Built with Electron, it's designed to be a versatile media toolkit that simplifies your video and audio processing workflow without sacrificing control.
 
 ---
 
@@ -16,19 +16,19 @@
 
 FFusion provides a clean, job-based interface for FFmpeg's most essential functions.
 
-- **🖼️ Modern Dashboard:** Drag and drop any media file to get an instant preview and key details.
-- **🔬 Detailed Media Inspector:** Dive deep into your file's technical properties. View comprehensive information about the container, video streams, audio streams, and metadata.
+- **🖼️ Unified Dashboard & Inspector:** Drag and drop any media file to get an instant preview and a deep dive into its technical properties. View comprehensive information about the container, video streams, audio streams, and metadata all in one place. An Actions Panel then guides you to the right tool for the job.
 - **⚙️ Advanced Conversion:** A feature-rich panel for converting media with fine-grained control over:
-  - **Video:** H.264/H.265/VP9/AV1 encoding with CRF quality control, bitrate, resolution scaling, and frame rate adjustments.
-  - **Audio:** Copy, convert (to AAC, MP3, Opus, etc.), or remove audio tracks.
+  - **Video:** H.264/H.265 encoding with CRF quality control, bitrate, resolution scaling, and frame rate adjustments.
+  - **Audio:** Copy, convert (to AAC, MP3, etc.), or remove audio tracks.
   - **Output:** Select your desired container (MP4, MKV, MOV, etc.).
-- **🎞️ Frame Extraction:** A dedicated tool to pull still image frames (JPG/PNG) from a video at a specified rate, with a live progress display.
 - **✂️ Essential Tools:**
-  - **Trim:** Quickly and losslessly cut segments from your media.
+  - **Interactive Trimming & GIF Creation:** Visually and precisely cut segments from your media using a live preview and a timeline with draggable handles. Export the trimmed selection as a high-quality animated GIF with custom size and FPS.
+  - **Video Stitching:** Merge multiple video clips into a single file. Drag and drop to reorder your clips before processing.
   - **Extract Audio:** Rip the audio track from a video file without re-encoding.
+  - **Frame Extraction:** A dedicated tool to pull still image frames (JPG/PNG) from a video at a specified rate.
 - **💡 UI & UX:**
-  - **Job Queue:** Add multiple configured conversion jobs to the queue.
-  - **Real-time Progress:** Monitor each job's progress in the queue and see detailed FFmpeg logs as they happen.
+  - **Processing Queue:** Add multiple configured jobs (conversions, trims, etc.) to a central queue.
+  - **Real-time Progress:** Monitor each job's progress and see detailed FFmpeg logs as they happen.
   - **Theming:** Switch between a crisp light theme and a focused dark theme.
 
 ## 📦 Installation
@@ -69,6 +69,8 @@ Interested in contributing or running the app from the source? Here’s how:
     ```bash
     npm start
     ```
+
+    The application will launch with the developer tools automatically opened.
 
 4.  **Build the installer:**
     ```bash
