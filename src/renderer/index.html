@@ -16,7 +16,7 @@
 
 <body data-theme="light">
      <div class="title-bar">
-          <div class="title-text"><i class="fa-solid fa-atom"></i> FFusion</div>
+          <div class="title-text"><i class="fa-solid fa-film"></i> FFusion</div>
           <div class="title-controls"><button id="theme-toggle-btn" class="nav-item"><i
                          class="fa-solid fa-circle-half-stroke"></i></button></div>
      </div>
@@ -25,14 +25,14 @@
           <nav class="sidebar">
                <button data-page="page-dashboard" class="nav-item active" title="Dashboard"><i
                          class="fa-solid fa-table-columns"></i></button>
-               <button data-page="page-stitch" class="nav-item" title="Stitch Videos"><i
-                         class="fa-solid fa-link"></i></button>
                <button data-page="page-convert" class="nav-item" title="Convert & Process"><i
                          class="fa-solid fa-gear"></i></button>
-               <button data-page="page-extract" class="nav-item" title="Extract Frames"><i
-                         class="fa-solid fa-images"></i></button>
                <button data-page="page-trim" class="nav-item" title="Trim & Cut"><i
                          class="fa-solid fa-scissors"></i></button>
+               <button data-page="page-stitch" class="nav-item" title="Stitch Videos"><i
+                         class="fa-solid fa-link"></i></button>
+               <button data-page="page-extract" class="nav-item" title="Extract Frames"><i
+                         class="fa-solid fa-images"></i></button>
                <button data-page="page-audio" class="nav-item" title="Audio Tools"><i
                          class="fa-solid fa-waveform"></i></button>
           </nav>
@@ -72,10 +72,15 @@
                     <div class="page-content stitch-layout">
                          <div id="stitch-file-list"></div>
                          <div class="stitch-controls">
-                              <p>Add two or more videos with the same resolution and codecs for the best results. Drag
-                                   and drop to reorder.</p>
+                              <div class="tool-card-simple">
+                                   <h3><i class="fa-solid fa-circle-info"></i> Instructions</h3>
+                                   <p>Add two or more videos to merge them into a single file. For best results, use
+                                        videos with the same resolution and codecs. Drag and drop to reorder.</p>
+                              </div>
                               <button class="button" id="stitch-add-videos-btn"><i class="fa-solid fa-plus"></i> Add
                                    Videos</button>
+                              <button class="button" id="stitch-clear-btn" disabled><i class="fa-solid fa-trash"></i>
+                                   Clear List</button>
                               <button class="button-cta" id="stitch-start-btn" disabled><i class="fa-solid fa-link"></i>
                                    Start Stitching</button>
                          </div>
@@ -110,14 +115,24 @@
                                                   <button class="button-group-item" data-value="copy">Copy</button>
                                              </div>
                                         </div>
-                                        <div class="form-control video-options"><label>Quality (CRF)</label>
-                                             <div class="slider-container" id="video-crf-slider" data-min="0"
-                                                  data-max="51" data-value="23">
-                                                  <div class="slider-track">
-                                                       <div class="slider-progress"></div>
-                                                       <div class="slider-thumb"></div>
+                                        <div class="video-options">
+                                             <div class="form-control"><label>Quality (CRF: 0-51)</label>
+                                                  <div class="slider-container" id="video-crf-slider" data-min="0"
+                                                       data-max="51" data-value="23">
+                                                       <div class="slider-track">
+                                                            <div class="slider-progress"></div>
+                                                            <div class="slider-thumb"></div>
+                                                       </div>
+                                                       <span class="slider-value">23</span>
                                                   </div>
-                                                  <span class="slider-value">23</span>
+                                             </div>
+                                             <div class="form-control">
+                                                  <label>Resolution (e.g., 1280x720 or -1:720)</label>
+                                                  <input type="text" id="video-resolution" placeholder="Original">
+                                             </div>
+                                             <div class="form-control">
+                                                  <label>Frame Rate (e.g., 24, 30)</label>
+                                                  <input type="text" id="video-framerate" placeholder="Original">
                                              </div>
                                         </div>
                                    </div>
@@ -172,8 +187,63 @@
                     <div class="page-header">
                          <h1>Extract Frames</h1>
                     </div>
-                    <div class="page-content">
-                         <!-- Content remains largely the same, handled by JS -->
+                    <div class="page-content extract-grid">
+                         <div class="extract-settings">
+                              <div class="source-selector">
+                                   <p>Source: <span id="extract-source-file">None</span></p>
+                                   <button class="button" id="browse-file-extract">Select File</button>
+                              </div>
+                              <div class="tool-card-simple">
+                                   <div id="extract-info-card" class="info-card hidden">
+                                        <div class="card-header">
+                                             <h3><i class="fa-solid fa-info-circle"></i> Details</h3>
+                                        </div>
+                                        <div class="card-body">
+                                             <div class="property-key">Duration</div>
+                                             <div class="property-value" id="extract-info-duration"></div>
+                                             <div class="property-key">Frame Rate</div>
+                                             <div class="property-value" id="extract-info-fps"></div>
+                                             <div class="property-key">Est. Frames</div>
+                                             <div class="property-value" id="extract-info-total"></div>
+                                        </div>
+                                   </div>
+                                   <div class="form-control"><label>Extraction Rate (Frames per Second)</label>
+                                        <div class="input-with-presets">
+                                             <div class="form-control"><input type="number" id="extract-fps" value="1"
+                                                       min="0.1" step="0.1"></div>
+                                             <div class="preset-group">
+                                                  <button class="preset-button" data-value="1">1</button>
+                                                  <button class="preset-button" data-value="5">5</button>
+                                                  <button class="preset-button" data-value="10">10</button>
+                                             </div>
+                                        </div>
+                                   </div>
+                                   <div class="form-control">
+                                        <label>Image Format</label>
+                                        <div class="button-group" id="extract-format" data-value="jpg">
+                                             <button class="button-group-item active" data-value="jpg">JPG</button>
+                                             <button class="button-group-item" data-value="png">PNG</button>
+                                        </div>
+                                   </div>
+                                   <div class="form-control">
+                                        <label>Output Directory</label>
+                                        <div class="input-with-presets">
+                                             <input type="text" id="extract-output-dir" placeholder="Not selected"
+                                                  disabled>
+                                             <button class="button" id="extract-select-dir-btn" disabled><i
+                                                       class="fa-solid fa-folder-plus"></i></button>
+                                             <button class="button" id="extract-open-dir-btn" disabled><i
+                                                       class="fa-solid fa-folder-open"></i></button>
+                                        </div>
+                                   </div>
+                                   <button class="button-cta" id="extract-frames-btn" disabled><i
+                                             class="fa-solid fa-download"></i> Start Extraction</button>
+                              </div>
+                         </div>
+                         <div id="extract-results-container" class="extract-results hidden">
+                              <div class="extract-results-header">Extracted Frames</div>
+                              <div id="extract-preview-gallery"></div>
+                         </div>
                     </div>
                </div>
 
@@ -198,8 +268,10 @@
                                                        <div class="timeline-track-selection"></div>
                                                   </div>
                                                   <div class="timeline-playhead"></div>
-                                                  <div class="timeline-handle" id="trim-handle-start"></div>
-                                                  <div class="timeline-handle" id="trim-handle-end"></div>
+                                                  <div class="timeline-handle" id="trim-handle-start" style="left: 0%;"></div>
+                                                  </div>
+                                                  <div class="timeline-handle" id="trim-handle-end" style="left: 100%;">
+                                                  </div>
                                              </div>
                                              <span id="trim-duration" class="time-display">00:00:00</span>
                                         </div>
@@ -251,6 +323,13 @@
                     </div>
                </div>
           </main>
+     </div>
+
+     <div id="image-viewer" class="hidden">
+          <button id="viewer-close" class="viewer-control"><i class="fa-solid fa-times"></i></button>
+          <button id="viewer-prev" class="viewer-control"><i class="fa-solid fa-chevron-left"></i></button>
+          <img id="viewer-image" src="" alt="Full size preview">
+          <button id="viewer-next" class="viewer-control"><i class="fa-solid fa-chevron-right"></i></button>
      </div>
 
      <footer class="status-bar">
