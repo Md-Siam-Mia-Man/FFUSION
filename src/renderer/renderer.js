@@ -1,6 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
   let currentFile = null;
   let stitchFiles = [];
+  let extractionJobs = {};
+  let currentImageViewer = { paths: [], index: 0 };
 
   const dom = {
     navItems: document.querySelectorAll(".nav-item"),
@@ -9,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
     statusText: document.getElementById("status-text"),
     statusBarProgress: document.getElementById("status-progress-bar"),
     clearFileBtn: document.getElementById("clear-file-btn"),
+
     dashboardHeaderControls: document.getElementById(
       "dashboard-header-controls"
     ),
@@ -21,14 +24,34 @@ document.addEventListener("DOMContentLoaded", () => {
       "dashboard-actions-container"
     ),
     dashboardInspector: document.getElementById("dashboard-inspector"),
+
     stitchAddVideosBtn: document.getElementById("stitch-add-videos-btn"),
     stitchFileList: document.getElementById("stitch-file-list"),
     stitchStartBtn: document.getElementById("stitch-start-btn"),
-    convertPage: document.getElementById("page-convert"),
+    stitchClearBtn: document.getElementById("stitch-clear-btn"),
+
     convertSourceFile: document.getElementById("convert-source-file"),
     addToQueueBtn: document.getElementById("add-to-queue-btn"),
     jobQueueList: document.getElementById("job-queue-list"),
-    trimPage: document.getElementById("page-trim"),
+    videoResolutionInput: document.getElementById("video-resolution"),
+    videoFramerateInput: document.getElementById("video-framerate"),
+
+    extractSourceFile: document.getElementById("extract-source-file"),
+    extractFramesBtn: document.getElementById("extract-frames-btn"),
+    extractFpsInput: document.getElementById("extract-fps"),
+    extractFormatGroup: document.getElementById("extract-format"),
+    extractInfoCard: document.getElementById("extract-info-card"),
+    extractInfoDuration: document.getElementById("extract-info-duration"),
+    extractInfoFps: document.getElementById("extract-info-fps"),
+    extractInfoTotal: document.getElementById("extract-info-total"),
+    extractOutputDirInput: document.getElementById("extract-output-dir"),
+    extractSelectDirBtn: document.getElementById("extract-select-dir-btn"),
+    extractOpenDirBtn: document.getElementById("extract-open-dir-btn"),
+    extractResultsContainer: document.getElementById(
+      "extract-results-container"
+    ),
+    extractPreviewGallery: document.getElementById("extract-preview-gallery"),
+
     trimSourceFile: document.getElementById("trim-source-file"),
     trimStartBtn: document.getElementById("trim-start-btn"),
     createGifBtn: document.getElementById("create-gif-btn"),
@@ -45,8 +68,15 @@ document.addEventListener("DOMContentLoaded", () => {
     trimHandleEnd: document.getElementById("trim-handle-end"),
     trimStartTimeInput: document.getElementById("trim-start-time"),
     trimEndTimeInput: document.getElementById("trim-end-time"),
+
     audioSourceFile: document.getElementById("audio-source-file"),
     extractAudioBtn: document.getElementById("extract-audio-btn"),
+
+    imageViewer: document.getElementById("image-viewer"),
+    viewerImage: document.getElementById("viewer-image"),
+    viewerClose: document.getElementById("viewer-close"),
+    viewerPrev: document.getElementById("viewer-prev"),
+    viewerNext: document.getElementById("viewer-next"),
   };
 
   setupEventListeners();
@@ -57,17 +87,28 @@ document.addEventListener("DOMContentLoaded", () => {
     dom.dashboardContent.classList.add("hidden");
     dom.dashboardHeaderControls.classList.add("hidden");
 
+    stitchFiles = [];
+    renderStitchList();
+
     document
       .querySelectorAll("span[id$='-source-file']")
       .forEach((span) => (span.textContent = "None"));
-    dom.addToQueueBtn.disabled = true;
-    dom.trimStartBtn.disabled = true;
-    dom.createGifBtn.disabled = true;
-    dom.extractAudioBtn.disabled = true;
+    document
+      .querySelectorAll("button[id$='-btn']")
+      .forEach((btn) => (btn.disabled = true));
+
+    dom.clearFileBtn.disabled = false;
+    dom.stitchAddVideosBtn.disabled = false;
+    dom.themeToggleBtn.disabled = false;
 
     dom.trimVideoPlayer.src = "";
     dom.trimStartTimeInput.value = "00:00:00.000";
     dom.trimEndTimeInput.value = "00:00:00.000";
+
+    dom.extractInfoCard.classList.add("hidden");
+    dom.extractResultsContainer.classList.add("hidden");
+    dom.extractOutputDirInput.value = "";
+
     updateStatus("Ready", "ready");
   }
 
@@ -88,35 +129,28 @@ document.addEventListener("DOMContentLoaded", () => {
       .addEventListener("click", () => handleBrowseFile({}));
 
     const appBody = document.body;
-    appBody.addEventListener(
-      "dragover",
-      (e) => {
-        e.preventDefault();
-        dom.dashboardWelcome
-          .querySelector(".drop-zone")
-          .classList.add("drag-over");
-      },
-      false
-    );
-    appBody.addEventListener(
-      "dragleave",
-      () =>
-        dom.dashboardWelcome
-          .querySelector(".drop-zone")
-          .classList.remove("drag-over"),
-      false
-    );
-    appBody.addEventListener(
-      "drop",
-      (e) => {
-        e.preventDefault();
-        dom.dashboardWelcome
-          .querySelector(".drop-zone")
-          .classList.remove("drag-over");
-        if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0].path);
-      },
-      false
-    );
+    appBody.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dom.dashboardWelcome
+        .querySelector(".drop-zone")
+        .classList.add("drag-over");
+    });
+    appBody.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dom.dashboardWelcome
+        .querySelector(".drop-zone")
+        .classList.remove("drag-over");
+    });
+    appBody.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dom.dashboardWelcome
+        .querySelector(".drop-zone")
+        .classList.remove("drag-over");
+      if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0].path);
+    });
 
     dom.dashboardActionsContainer.addEventListener("click", (e) => {
       const card = e.target.closest(".action-card");
@@ -125,25 +159,50 @@ document.addEventListener("DOMContentLoaded", () => {
     dom.dashboardInspector.addEventListener("click", handleInspectorCopy);
 
     dom.stitchAddVideosBtn.addEventListener("click", handleStitchAdd);
+    dom.stitchClearBtn.addEventListener("click", () => {
+      stitchFiles = [];
+      renderStitchList();
+    });
     dom.stitchFileList.addEventListener("click", handleStitchRemove);
     dom.stitchStartBtn.addEventListener("click", runStitchJob);
     setupDragAndDrop(dom.stitchFileList, stitchFiles, renderStitchList);
 
     dom.addToQueueBtn.addEventListener("click", addConversionJobToQueue);
-    dom.jobQueueList.addEventListener("click", (e) => {
-      const button = e.target.closest(".show-file-btn");
-      if (button) window.api.showItemInFolder(button.dataset.path);
-    });
-
     dom.trimStartBtn.addEventListener("click", runTrimJob);
     dom.createGifBtn.addEventListener("click", runGifJob);
     dom.extractAudioBtn.addEventListener("click", runExtractAudioJob);
 
+    dom.extractSelectDirBtn.addEventListener("click", handleSelectExtractDir);
+    dom.extractOpenDirBtn.addEventListener("click", () =>
+      window.api.openPath(dom.extractOutputDirInput.value)
+    );
+    dom.extractFpsInput.addEventListener("input", updateEstimatedFrames);
+    document.querySelectorAll("#page-extract .preset-button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dom.extractFpsInput.value = btn.dataset.value;
+        updateEstimatedFrames();
+      });
+    });
+    dom.extractFramesBtn.addEventListener("click", runExtractFramesJob);
+    dom.extractPreviewGallery.addEventListener("click", (e) => {
+      const thumb = e.target.closest(".preview-thumbnail");
+      if (thumb) {
+        const index = parseInt(thumb.dataset.index, 10);
+        openImageViewer(extractionJobs[thumb.dataset.jobId].imagePaths, index);
+      }
+    });
+
+    document.body.addEventListener("click", (e) => {
+      const button = e.target.closest(".show-file-btn");
+      if (button) window.api.showItemInFolder(button.dataset.path);
+    });
+
     window.api.onJobFeedback(([feedback]) => handleJobFeedback(feedback));
 
-    setupCustomComponentHandlers(document.getElementById("page-convert"));
+    setupCustomComponentHandlers(document.body);
     setupSlider(document.getElementById("video-crf-slider"));
     setupTrimPage();
+    setupImageViewer();
     updateConvertFormState();
   }
 
@@ -167,6 +226,9 @@ document.addEventListener("DOMContentLoaded", () => {
         group.dataset.value = target.dataset.value;
         if (group.id === "video-codec" || group.id === "audio-action") {
           updateConvertFormState();
+        }
+        if (group.id === "extract-format") {
+          dom.extractFramesBtn.disabled = !dom.extractOutputDirInput.value;
         }
       }
     });
@@ -246,6 +308,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const { path, info } = currentFile;
     const fileName = path.split(/[\\/]/).pop();
     const videoStream = info.streams.find((s) => s.codec_type === "video");
+    const audioStream = info.streams.find((s) => s.codec_type === "audio");
 
     dom.dashboardWelcome.classList.add("hidden");
     dom.dashboardContent.classList.remove("hidden");
@@ -253,9 +316,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (videoStream) {
       const thumbPath = await window.api.generatePreview(path);
-      dom.dashboardPreviewContainer.innerHTML = `<img src="file://${thumbPath.replace(/\\/g, "/")}" class="preview-image" alt="Thumbnail"><div class="preview-details"><h2 title="${path}">${fileName}</h2><p>${videoStream.width}x${videoStream.height} &nbsp;&bull;&nbsp; ${format.duration(info.format.duration)}</p></div>`;
+      dom.dashboardPreviewContainer.innerHTML = `<img src="file://${thumbPath.replace(
+        /\\/g,
+        "/"
+      )}" class="preview-image" alt="Thumbnail"><div class="preview-details"><h2 title="${path}">${fileName}</h2><p>${
+        videoStream.width
+      }x${videoStream.height} &nbsp;&bull;&nbsp; ${format.duration(
+        info.format.duration
+      )}</p></div>`;
     } else {
-      dom.dashboardPreviewContainer.innerHTML = `<i class="fa-solid fa-music preview-audio-icon"></i><div class="preview-details"><h2 title="${path}">${fileName}</h2><p>${info.streams[0].codec_long_name} &nbsp;&bull;&nbsp; ${format.duration(info.format.duration)}</p></div>`;
+      dom.dashboardPreviewContainer.innerHTML = `<i class="fa-solid fa-music preview-audio-icon"></i><div class="preview-details"><h2 title="${path}">${fileName}</h2><p>${
+        audioStream.codec_long_name
+      } &nbsp;&bull;&nbsp; ${format.duration(info.format.duration)}</p></div>`;
     }
 
     dom.dashboardActionsContainer.innerHTML = `<div class="action-card" data-page="page-convert"><h3><i class="fa-solid fa-gear"></i> Convert & Process</h3><p>Change format, codec, resolution, and more.</p></div><div class="action-card" data-page="page-trim"><h3><i class="fa-solid fa-scissors"></i> Trim & GIF</h3><p>Visually trim or create animated GIFs.</p></div>`;
@@ -264,12 +336,23 @@ document.addEventListener("DOMContentLoaded", () => {
     document
       .querySelectorAll("span[id$='-source-file']")
       .forEach((span) => (span.textContent = path));
+
     dom.addToQueueBtn.disabled = false;
+    dom.extractSelectDirBtn.disabled = !videoStream;
     dom.trimStartBtn.disabled = !videoStream;
     dom.createGifBtn.disabled = !videoStream;
-    dom.extractAudioBtn.disabled = !info.streams.find(
-      (s) => s.codec_type === "audio"
-    );
+    dom.extractAudioBtn.disabled = !audioStream;
+
+    if (videoStream) {
+      dom.extractInfoCard.classList.remove("hidden");
+      dom.extractInfoDuration.textContent = format.duration(
+        info.format.duration
+      );
+      dom.extractInfoFps.textContent = format.frameRate(
+        videoStream.r_frame_rate
+      );
+      updateEstimatedFrames();
+    }
 
     dom.trimVideoPlayer.src = `file://${path.replace(/\\/g, "/")}`;
   }
@@ -287,31 +370,8 @@ document.addEventListener("DOMContentLoaded", () => {
     ].join("");
     cardsHtml += createCard("File", "fa-file-lines", fileFormat, fileCardBody);
 
-    if (fileFormat.tags && Object.keys(fileFormat.tags).length > 0) {
-      const tagsBody = Object.entries(fileFormat.tags)
-        .map(
-          ([key, value]) =>
-            `<div class="property-key">${format.titleCase(key)}</div><div class="property-value ${value.length > 100 ? "long-text" : ""}" title="${value}">${value}</div>`
-        )
-        .join("");
-      cardsHtml += createCard(
-        "Tags",
-        "fa-tags",
-        fileFormat.tags,
-        tagsBody,
-        true
-      );
-    }
-
     streams.forEach((stream) => {
       let title, icon, body;
-      const colorInfo = [
-        stream.color_space,
-        stream.color_primaries,
-        stream.color_transfer,
-      ]
-        .filter(Boolean)
-        .join(" / ");
       if (stream.codec_type === "video") {
         title = `Video Stream #${stream.index}`;
         icon = "fa-film";
@@ -327,7 +387,6 @@ document.addEventListener("DOMContentLoaded", () => {
           createProperty("Pixel Format", stream.pix_fmt, true),
           createProperty("Frame Rate", format.frameRate(stream.r_frame_rate)),
           createProperty("Bitrate", format.bitrate(stream.bit_rate)),
-          createProperty("Color Space", colorInfo),
         ].join("");
       } else if (stream.codec_type === "audio") {
         title = `Audio Stream #${stream.index}`;
@@ -345,39 +404,34 @@ document.addEventListener("DOMContentLoaded", () => {
             `${stream.channels} (${stream.channel_layout})`
           ),
           createProperty("Bitrate", format.bitrate(stream.bit_rate)),
-          createProperty("Language", stream.tags?.language?.toUpperCase()),
         ].join("");
       } else {
-        title = `${format.titleCase(stream.codec_type || "other")} Stream #${stream.index}`;
-        icon = "fa-closed-captioning";
-        body = [
-          createProperty(
-            "Codec",
-            `${stream.codec_long_name} (${stream.codec_name})`,
-            true
-          ),
-          createProperty("Language", stream.tags?.language?.toUpperCase()),
-        ].join("");
+        return;
       }
       cardsHtml += createCard(title, icon, stream, body);
     });
-
     dom.dashboardInspector.innerHTML = cardsHtml;
   }
 
-  function createCard(title, icon, rawData, body, isTags = false) {
-    return `<div class="info-card"><div class="card-header"><h3><i class="fa-solid ${icon}"></i> ${title}</h3><button class="button copy-json-btn" data-raw='${JSON.stringify(rawData)}'><i class="fa-solid fa-paste"></i></button></div><div class="card-body ${isTags ? "tags-body" : ""}">${body}</div></div>`;
+  function createCard(title, icon, rawData, body) {
+    return `<div class="info-card"><div class="card-header"><h3><i class="fa-solid ${icon}"></i> ${title}</h3><button class="button copy-json-btn" data-raw='${JSON.stringify(
+      rawData
+    )}'><i class="fa-solid fa-paste"></i></button></div><div class="card-body">${body}</div></div>`;
   }
   function createProperty(key, value, isBadge = false) {
     if (!value || value === "N/A") return "";
-    return `<div class="property-key">${key}</div><div class="property-value ${isBadge ? "badge" : ""}" title="${value}">${value}</div>`;
+    return `<div class="property-key">${key}</div><div class="property-value ${
+      isBadge ? "badge" : ""
+    }" title="${value}">${value}</div>`;
   }
 
   const format = {
     bytes: (b) => {
       if (!b) return "0 Bytes";
       const i = Math.floor(Math.log(b) / Math.log(1024));
-      return `${parseFloat((b / Math.pow(1024, i)).toFixed(2))} ${["B", "KB", "MB", "GB"][i]}`;
+      return `${parseFloat((b / Math.pow(1024, i)).toFixed(2))} ${
+        ["B", "KB", "MB", "GB"][i]
+      }`;
     },
     duration: (s, ms = false) => {
       if (!s) return ms ? "00:00:00.000" : "00:00:00";
@@ -400,6 +454,7 @@ document.addEventListener("DOMContentLoaded", () => {
           /\w\S*/g,
           (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
         ),
+    pad: (num, size) => ("00000" + num).slice(-size),
   };
 
   function navigateTo(pageId) {
@@ -446,10 +501,14 @@ document.addEventListener("DOMContentLoaded", () => {
     dom.stitchFileList.innerHTML = stitchFiles
       .map(
         (file, index) =>
-          `<div class="stitch-file-item" draggable="true" data-index="${index}"><i class="fa-solid fa-grip-lines"></i><span title="${file}">${file.split(/[\\/]/).pop()}</span><button class="remove-stitch-item" data-index="${index}">&times;</button></div>`
+          `<div class="stitch-file-item" draggable="true" data-index="${index}"><i class="fa-solid fa-grip-lines"></i><span title="${file}">${file
+            .split(/[\\/]/)
+            .pop()}</span><button class="remove-stitch-item" data-index="${index}">&times;</button></div>`
       )
       .join("");
+    const hasFiles = stitchFiles.length > 0;
     dom.stitchStartBtn.disabled = stitchFiles.length < 2;
+    dom.stitchClearBtn.disabled = !hasFiles;
   }
 
   function setupDragAndDrop(container, list, renderFn) {
@@ -465,20 +524,17 @@ document.addEventListener("DOMContentLoaded", () => {
     container.addEventListener("dragover", (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
-      return false;
     });
     container.addEventListener("drop", (e) => {
       e.stopPropagation();
-      if (dragSrcEl !== e.target) {
+      const dropTarget = e.target.closest(".stitch-file-item");
+      if (dragSrcEl && dropTarget && dragSrcEl !== dropTarget) {
         const fromIndex = parseInt(dragSrcEl.dataset.index);
-        const toIndex = parseInt(
-          e.target.closest(".stitch-file-item").dataset.index
-        );
+        const toIndex = parseInt(dropTarget.dataset.index);
         const item = list.splice(fromIndex, 1)[0];
         list.splice(toIndex, 0, item);
         renderFn();
       }
-      return false;
     });
   }
 
@@ -520,10 +576,12 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     const handleMove = (e, handle) => {
       const rect = dom.trimTimelineContainer.getBoundingClientRect();
-      const percent = Math.max(
-        0,
-        Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)
-      );
+      let percent = ((e.clientX - rect.left) / rect.width) * 100;
+      const startPercent = parseFloat(dom.trimHandleStart.style.left);
+      const endPercent = parseFloat(dom.trimHandleEnd.style.left);
+      if (handle === dom.trimHandleStart)
+        percent = Math.max(0, Math.min(percent, endPercent));
+      else percent = Math.max(startPercent, Math.min(100, percent));
       handle.style.left = `${percent}%`;
       const time = dom.trimVideoPlayer.duration * (percent / 100);
       const input =
@@ -534,6 +592,7 @@ document.addEventListener("DOMContentLoaded", () => {
       dom.trimVideoPlayer.currentTime = time;
       updateSelection();
     };
+
     const addDragListeners = (handle) => {
       handle.addEventListener("mousedown", (e) => {
         e.preventDefault();
@@ -576,6 +635,8 @@ document.addEventListener("DOMContentLoaded", () => {
         video: {
           codec: document.getElementById("video-codec").dataset.value,
           crf: document.getElementById("video-crf-slider").dataset.value,
+          resolution: dom.videoResolutionInput.value || null,
+          framerate: dom.videoFramerateInput.value || null,
         },
         audio: {
           action: document.getElementById("audio-action").dataset.value,
@@ -584,22 +645,16 @@ document.addEventListener("DOMContentLoaded", () => {
         },
       },
     };
-    renderJobItem(jobId, outputPath);
+    renderJobItem(jobId, outputPath, "Converting");
     window.api.runJob({ jobId, jobType: "CONVERT", options });
   }
 
   async function runStitchJob() {
     if (stitchFiles.length < 2) return;
-    const firstFilePath = stitchFiles[0];
-    const lastSeparatorIndex = Math.max(
-      firstFilePath.lastIndexOf("/"),
-      firstFilePath.lastIndexOf("\\")
-    );
-    const directory = firstFilePath.substring(0, lastSeparatorIndex);
-    const defaultPath = `${directory}/stitched_output.mp4`;
+    const defaultPath = `stitched_output.mp4`;
     const outputFile = await window.api.saveFile({
       defaultPath,
-      filters: [{ name: "Video", extensions: ["mp4"] }],
+      filters: [{ name: "Video", extensions: ["mp4", "mkv"] }],
     });
     if (!outputFile) return;
     const jobId = `stitch-${Date.now()}`;
@@ -680,11 +735,65 @@ document.addEventListener("DOMContentLoaded", () => {
     window.api.runJob({ jobId, jobType: "EXTRACT_AUDIO", options });
   }
 
+  async function handleSelectExtractDir() {
+    const dir = await window.api.openDirectory();
+    if (dir) {
+      dom.extractOutputDirInput.value = dir;
+      dom.extractOpenDirBtn.disabled = false;
+      dom.extractFramesBtn.disabled = false;
+    }
+  }
+
+  function updateEstimatedFrames() {
+    if (!currentFile) return;
+    const duration = parseFloat(currentFile.info.format.duration);
+    const rate = parseFloat(dom.extractFpsInput.value);
+    if (duration > 0 && rate > 0) {
+      dom.extractInfoTotal.textContent = `${Math.ceil(duration * rate)} frames`;
+    } else {
+      dom.extractInfoTotal.textContent = "N/A";
+    }
+  }
+
+  async function runExtractFramesJob() {
+    if (!currentFile) return;
+    const videoStream = currentFile.info.streams.find(
+      (s) => s.codec_type === "video"
+    );
+    if (!videoStream) return;
+
+    const outputDir = dom.extractOutputDirInput.value;
+    if (!outputDir) return;
+
+    dom.extractResultsContainer.classList.remove("hidden");
+    dom.extractPreviewGallery.innerHTML = "";
+
+    const jobId = `extract-frames-${Date.now()}`;
+    const fps = parseFloat(dom.extractFpsInput.value);
+    const duration = parseFloat(currentFile.info.format.duration);
+    const totalFrames = Math.floor(duration * fps);
+    const format = dom.extractFormatGroup.dataset.value;
+
+    extractionJobs[jobId] = { outputDir, format, imagePaths: [] };
+
+    const options = {
+      inputFile: currentFile.path,
+      outputFile: outputDir,
+      sourceInfo: currentFile.info,
+      totalFrames: totalFrames,
+      settings: { fps, format },
+    };
+    window.api.runJob({ jobId, jobType: "EXTRACT_FRAMES", options });
+    updateStatus("Extraction started...", "processing");
+  }
+
   function renderJobItem(jobId, outputPath, type = "Processing") {
     const jobEl = document.createElement("div");
     jobEl.className = "job-item";
     jobEl.id = jobId;
-    jobEl.innerHTML = `<div class="job-header"><span class="job-filename" title="${outputPath}">${outputPath.split(/[\\/]/).pop()}</span><span class="job-status">Queued</span></div><div class="job-progress-bar"><div></div></div><div class="job-footer hidden"><span>${type}</span><button class="button show-file-btn"><i class="fa-solid fa-folder"></i> Show File</button></div>`;
+    jobEl.innerHTML = `<div class="job-header"><span class="job-filename" title="${outputPath}">${outputPath
+      .split(/[\\/]/)
+      .pop()}</span><span class="job-status">Waiting</span></div><div class="job-progress-bar"><div></div></div><div class="job-footer hidden"><span>${type}</span><button class="button show-file-btn" data-path="${outputPath}"><i class="fa-solid fa-folder"></i> Show File</button></div>`;
     dom.jobQueueList.prepend(jobEl);
   }
 
@@ -698,7 +807,14 @@ document.addEventListener("DOMContentLoaded", () => {
       totalFrames,
       outputFile,
       statusText,
+      finalFrame,
     } = feedback;
+
+    if (jobId.startsWith("extract-frames")) {
+      handleExtractJobFeedback(feedback);
+      return;
+    }
+
     const jobEl = document.getElementById(jobId);
     if (!jobEl) return;
     const statusEl = jobEl.querySelector(".job-status");
@@ -726,9 +842,81 @@ document.addEventListener("DOMContentLoaded", () => {
         statusEl.textContent = `Error`;
         jobEl.className = "job-item error";
         progressEl.style.width = "100%";
+        footerEl.classList.remove("hidden");
         jobEl.querySelector(".job-filename").title = message;
         break;
     }
+  }
+
+  function handleExtractJobFeedback({ jobId, type, message, finalFrame }) {
+    if (type === "success") {
+      const jobData = extractionJobs[jobId];
+      const imagePaths = [];
+      for (let i = 1; i <= finalFrame; i++) {
+        const fileName = `frame-${format.pad(i, 5)}.${jobData.format}`;
+        const filePath = `${jobData.outputDir}\\${fileName}`.replace(
+          /\\/g,
+          "/"
+        );
+        imagePaths.push(filePath);
+      }
+      jobData.imagePaths = imagePaths;
+      renderExtractionPreview(jobId, imagePaths);
+      updateStatus(`Extraction complete: ${finalFrame} frames`, "success");
+    } else if (type === "error") {
+      updateStatus(`Extraction failed: ${message}`, "error");
+    }
+  }
+
+  function renderExtractionPreview(jobId, imagePaths) {
+    dom.extractResultsContainer.classList.remove("hidden");
+    const gallery = dom.extractPreviewGallery;
+    gallery.innerHTML = "";
+    imagePaths.forEach((path, index) => {
+      const thumb = document.createElement("div");
+      thumb.className = "preview-thumbnail";
+      thumb.dataset.index = index;
+      thumb.dataset.jobId = jobId;
+      thumb.innerHTML = `<img src="file://${path}" loading="lazy">`;
+      gallery.appendChild(thumb);
+    });
+  }
+
+  function setupImageViewer() {
+    dom.viewerClose.addEventListener("click", () =>
+      dom.imageViewer.classList.add("hidden")
+    );
+    dom.viewerPrev.addEventListener("click", () => navigateImageViewer(-1));
+    dom.viewerNext.addEventListener("click", () => navigateImageViewer(1));
+    document.addEventListener("keydown", (e) => {
+      if (!dom.imageViewer.classList.contains("hidden")) {
+        if (e.key === "ArrowLeft") navigateImageViewer(-1);
+        if (e.key === "ArrowRight") navigateImageViewer(1);
+        if (e.key === "Escape") dom.imageViewer.classList.add("hidden");
+      }
+    });
+  }
+
+  function openImageViewer(paths, index) {
+    currentImageViewer = { paths, index };
+    dom.imageViewer.classList.remove("hidden");
+    updateImageViewer();
+  }
+
+  function navigateImageViewer(direction) {
+    const { paths, index } = currentImageViewer;
+    const newIndex = index + direction;
+    if (newIndex >= 0 && newIndex < paths.length) {
+      currentImageViewer.index = newIndex;
+      updateImageViewer();
+    }
+  }
+
+  function updateImageViewer() {
+    const { paths, index } = currentImageViewer;
+    dom.viewerImage.src = `file://${paths[index]}`;
+    dom.viewerPrev.disabled = index === 0;
+    dom.viewerNext.disabled = index === paths.length - 1;
   }
 
   function updateStatus(text, state) {
@@ -740,7 +928,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state === "success"
         ? "var(--success)"
         : state === "error"
-          ? "var(--error)"
-          : "var(--text-secondary)";
+        ? "var(--error)"
+        : "var(--text-secondary)";
   }
 });
