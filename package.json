@@ -1,6 +1,6 @@
 {
   "name": "ffusion",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "A powerful, modern desktop GUI for FFmpeg.",
   "main": "src/main/index.js",
   "scripts": {
@@ -16,8 +16,8 @@
   "author": "Md Siam Mia",
   "license": "MIT",
   "devDependencies": {
-    "@electron/packager": "^18.4.4",
-    "electron": "^38.2.2",
+    "@electron/packager": "^19.0.0",
+    "electron": "^38.3.0",
     "fs-extra": "^11.3.2",
     "innosetup-compiler": "6.3.1"
   }
