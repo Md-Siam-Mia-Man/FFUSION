@@ -31,32 +31,28 @@ function buildCommandArgs(jobType, options) {
 
   switch (jobType) {
     case "CONVERT":
-      const { video, audio, output } = options.settings;
+      const { video, audio } = options.settings;
       if (video.codec === "copy") {
         args.push("-c:v", "copy");
       } else {
         args.push("-c:v", video.codec, "-crf", video.crf);
-        if (video.bitrate) args.push("-b:v", `${video.bitrate}k`);
         if (video.resolution) args.push("-vf", `scale=${video.resolution}`);
         if (video.framerate) args.push("-r", video.framerate);
       }
       if (audio.action === "copy") {
         args.push("-c:a", "copy");
       } else if (audio.action === "convert") {
-        args.push("-c:a", audio.codec);
-        if (audio.bitrate) args.push("-b:a", `${audio.bitrate}k`);
+        args.push("-c:a", audio.codec, "-b:a", `${audio.bitrate}k`);
       } else if (audio.action === "remove") {
         args.push("-an");
       }
-      if (output.timeLimit) args.push("-t", output.timeLimit);
       args.push("-y", outputFile);
       break;
     case "TRIM":
       const { trim } = options.settings;
       if (trim.start) args.push("-ss", trim.start);
       if (trim.end) args.push("-to", trim.end);
-      args.push("-c", "copy");
-      args.push("-y", outputFile);
+      args.push("-c", "copy", "-y", outputFile);
       break;
     case "EXTRACT_AUDIO":
       args.push("-vn", "-c:a", "copy", "-y", outputFile);
@@ -79,9 +75,13 @@ function runFFmpeg(jobId, args, onProgress) {
       { jobId, type: "start", message: "Process started." },
     ]);
 
+    let lastFrame = 0;
     ffmpeg.stderr.on("data", (data) => {
       const line = data.toString();
       const feedback = onProgress(line);
+      if (feedback.frame) {
+        lastFrame = feedback.frame;
+      }
       mainWindow.webContents.send("job-feedback", [
         { jobId, type: "log", message: line, ...feedback },
       ]);
@@ -91,7 +91,7 @@ function runFFmpeg(jobId, args, onProgress) {
       const status = code === 0 ? "success" : "error";
       const message = `Process finished with code ${code}.`;
       mainWindow.webContents.send("job-feedback", [
-        { jobId, type: status, message },
+        { jobId, type: status, message, finalFrame: lastFrame },
       ]);
       code === 0 ? resolve() : reject(new Error(message));
     });
@@ -192,13 +192,14 @@ ipcMain.on("run-job", (event, { jobId, jobType, options }) => {
   const args = buildCommandArgs(jobType, options);
   const duration = parseFloat(options.sourceInfo.format.duration) || 0;
   runFFmpeg(jobId, args, (line) => {
-    if (jobType === "EXTRACT_FRAMES") {
+    if (jobType === "EXTRACT_FRAMES" && options.totalFrames > 0) {
       const frameMatch = line.match(/frame=\s*(\d+)/);
-      if (frameMatch)
+      if (frameMatch) {
         return {
           frame: parseInt(frameMatch[1], 10),
           totalFrames: options.totalFrames,
         };
+      }
     } else {
       const progressMatch = line.match(/time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
       if (progressMatch && duration > 0) {
@@ -208,7 +209,15 @@ ipcMain.on("run-job", (event, { jobId, jobType, options }) => {
       }
     }
     return {};
-  }).catch(console.error);
+  })
+    .then(() => {
+      if (jobType !== "EXTRACT_FRAMES") {
+        mainWindow.webContents.send("job-feedback", [
+          { jobId, type: "success", outputFile: options.outputFile },
+        ]);
+      }
+    })
+    .catch(console.error);
 });
 
 ipcMain.on("run-stitch-job", async (event, { jobId, files, outputFile }) => {
@@ -290,7 +299,9 @@ ipcMain.on("run-gif-job", async (event, { jobId, options }) => {
   } catch (e) {
     console.error(e);
   } finally {
-    await fs.unlink(palettePath);
+    if (await fs.stat(palettePath).catch(() => false)) {
+      await fs.unlink(palettePath);
+    }
   }
 });
 
